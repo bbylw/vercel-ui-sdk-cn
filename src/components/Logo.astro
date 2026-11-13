@@ -1,10 +1,18 @@
 ---
-/* The site's logo, inline so it takes the text colour in light and dark. The
-   drawing lives in logo.ts, which the social cards read too. */
+/* The site's brand mark: twin focus brackets take `currentColor` (`text-brand`)
+   while the shared focal core takes the agent signal accent unless `mono` is set. */
 import { logo } from "./logo";
 
-interface Props { class?: string }
-// Callers give it a whole-pixel box and the drawing centres inside.
-const { class: cls = "h-5 w-5" } = Astro.props;
+interface Props {
+	class?: string;
+	mono?: boolean;
+}
+
+const { class: cls = "h-5 w-5", mono = false } = Astro.props;
+const coreFill = mono ? "currentColor" : "var(--color-agent, #ff893b)";
 ---
-<svg xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${logo.width} ${logo.height}`} class={cls} aria-hidden="true">{logo.paths.map((d) => <path d={d} fill="currentColor" fill-rule="evenodd" />)}</svg>
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${logo.width} ${logo.height}`} class={cls} aria-hidden="true">
+	{logo.brackets.map((d) => <path d={d} fill="currentColor" fill-rule="evenodd" />)}
+	<path d={logo.core} fill={coreFill} />
+</svg>

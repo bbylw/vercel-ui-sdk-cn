@@ -53,13 +53,16 @@ const el = (type: string, style: Style, children?: CardNode | (CardNode | undefi
   props: { style, children },
 });
 
-const Logo = (height: number, color: string): CardNode => ({
+const Logo = (height: number, color: string, coreColor: string = AGENT): CardNode => ({
   type: "svg",
   props: {
     width: Math.round((height * logo.width) / logo.height),
     height,
     viewBox: `0 0 ${logo.width} ${logo.height}`,
-    children: logo.paths.map((d) => ({ type: "path", props: { d, fill: color, fillRule: "evenodd" } })),
+    children: [
+      ...logo.brackets.map((d) => ({ type: "path", props: { d, fill: color } })),
+      { type: "path", props: { d: logo.core, fill: coreColor } },
+    ],
   },
 });
 
@@ -68,13 +71,13 @@ const Logo = (height: number, color: string): CardNode => ({
 const RingMotif = (): CardNode => ({
   type: "svg",
   props: {
-    width: 380,
-    height: 380,
-    viewBox: "0 0 32 32",
-    style: { position: "absolute", right: -70, top: 150 },
+    width: 390,
+    height: 390,
+    viewBox: `0 0 ${logo.width} ${logo.height}`,
+    style: { position: "absolute", right: -78, top: 145 },
     children: [
-      { type: "rect", props: { x: 4, y: 4, width: 24, height: 24, rx: 7.5, fill: "none", stroke: BRAND, strokeOpacity: 0.16, strokeWidth: 1.1 } },
-      { type: "circle", props: { cx: 16, cy: 16, r: 3.4, fill: BRAND, fillOpacity: 0.16 } },
+      ...logo.brackets.map((d) => ({ type: "path", props: { d, fill: BRAND, fillOpacity: 0.14 } })),
+      { type: "path", props: { d: logo.core, fill: AGENT, fillOpacity: 0.18 } },
     ],
   },
 });

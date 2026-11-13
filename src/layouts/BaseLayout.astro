@@ -144,6 +144,8 @@ const resolvedMarkdownUrl =
       apiVersion={apiVersion}
       coordinate={coordinate}
     />
+    <link rel="icon" href={withBase("/favicon.ico", import.meta.env.BASE_URL)} sizes="32x32" />
+    <link rel="apple-touch-icon" href={withBase("/apple-touch-icon.png", import.meta.env.BASE_URL)} />
     <ClientRouter />
   </head>
   <body class="min-h-screen bg-background text-foreground antialiased">
