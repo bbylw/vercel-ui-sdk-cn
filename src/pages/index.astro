@@ -9,7 +9,6 @@ import { config } from "virtual:nimbus/config";
 import { withBase } from "@cloudflare/nimbus-docs/runtime";
 import Playground from "@/components/demos/Playground.astro";
 import FrameworkTabs from "@/components/demos/FrameworkTabs.astro";
-import ComponentCatalog from "@/components/demos/ComponentCatalog.astro";
 import BehaviorDemos from "@/components/demos/BehaviorDemos.astro";
 import CopyCommand from "@/components/demos/CopyCommand.astro";
 import "@/styles/landing.css";
@@ -20,7 +19,6 @@ const docs = href("/docs/getting-started/installation");
 const nav = [
 	{ label: "框架", hash: "#frameworks" },
 	{ label: "智能体", hash: "#agents" },
-	{ label: "组件", hash: "#components" },
 	{ label: "行为", hash: "#behaviors" },
 ];
 
@@ -139,7 +137,7 @@ await agent.act({
 								快速开始
 							</a>
 							<a
-								href="#components"
+								href={href("/docs/components")}
 								class="inline-flex h-11 items-center rounded-lg border border-border-strong bg-card px-6 text-sm font-medium text-foreground no-underline transition-colors hover:border-brand hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
 							>
 								浏览组件
@@ -228,30 +226,12 @@ await agent.act({
 				</div>
 			</section>
 
-			<!-- Components -->
-			<section id="components" data-section class="landing-section" style="--section-accent: var(--color-success)">
-				<div class="section-inner">
-					<div class="reveal mb-10 max-w-2xl">
-						<h2 class="flex items-baseline gap-3 text-[1.75rem] font-semibold tracking-tight text-foreground">
-							<span class="font-mono text-base font-normal text-success">03</span>
-							55 个组件，行为完备
-						</h2>
-						<p class="mt-4 text-[1.0625rem] leading-relaxed text-muted-foreground">
-							从按钮到组合框，从对话框到瀑布流。每个组件都内置键盘导航、焦点管理与 ARIA 语义。搜索或直接点选，进入对应文档。
-						</p>
-					</div>
-					<div class="reveal" style="--reveal-i:1">
-						<ComponentCatalog />
-					</div>
-				</div>
-			</section>
-
 			<!-- Behaviors -->
 			<section id="behaviors" data-section class="landing-section" style="--section-accent: var(--color-warning)">
 				<div class="section-inner">
 					<div class="reveal mb-10 max-w-2xl">
 						<h2 class="flex items-baseline gap-3 text-[1.75rem] font-semibold tracking-tight text-foreground">
-							<span class="font-mono text-base font-normal text-warning">04</span>
+							<span class="font-mono text-base font-normal text-warning">03</span>
 							每个细节都已就位
 						</h2>
 						<p class="mt-4 text-[1.0625rem] leading-relaxed text-muted-foreground">
