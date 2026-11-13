@@ -67,17 +67,18 @@ const columns = [
 			))}
 		</div>
 		<div class="mt-12 flex flex-col items-start justify-between gap-3 border-t border-border pt-6 sm:flex-row sm:items-center">
-			<p class="font-mono text-xs text-muted-foreground">界面行为，而非样式。</p>
+			<p class="font-mono text-xs text-muted-foreground">MIT License · Built with @ui-sdk/core</p>
 			{config.github && (
 				<a
 					href={config.github}
 					target="_blank"
 					rel="noopener"
-					aria-label="GitHub"
-					class="flex items-center gap-2 text-xs text-muted-foreground no-underline transition-colors hover:text-foreground"
+					aria-label="GitHub 仓库"
+					class="flex items-center gap-2 font-mono text-xs text-muted-foreground no-underline transition-colors hover:text-foreground"
 				>
 					<Icon name="ph:github-logo" class="h-4 w-4" />
-					vercel-labs/ui
+					<span>vercel-labs/ui</span>
+					<Icon name="ph:arrow-up-right" class="h-3.5 w-3.5 opacity-60" />
 				</a>
 			)}
 		</div>

@@ -39,7 +39,7 @@ export function CopyCommand() {
 						<Toggle
 							key={k}
 							value={k}
-							className="rounded-md px-2.5 py-1 font-mono text-xs text-muted-foreground transition-colors hover:text-foreground data-[pressed]:bg-card data-[pressed]:text-brand data-[pressed]:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+							className="rounded-md px-2.5 py-1 font-mono text-xs text-muted-foreground transition-colors duration-200 hover:text-foreground data-[pressed]:bg-card data-[pressed]:text-brand data-[pressed]:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
 						>
 							{k}
 						</Toggle>
@@ -49,7 +49,7 @@ export function CopyCommand() {
 			</div>
 			<div className="flex items-center gap-3 px-4 py-4">
 				<span className="select-none font-mono text-sm text-agent" aria-hidden="true">$</span>
-				<code className="flex-1 overflow-x-auto whitespace-nowrap font-mono text-sm text-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+				<code className="flex-1 select-all overflow-x-auto whitespace-nowrap font-mono text-sm text-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 					{command}
 				</code>
 				<button
@@ -57,11 +57,12 @@ export function CopyCommand() {
 					onClick={copy}
 					aria-label="复制安装命令"
 					className={cx(
-						"flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+						"inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 font-mono text-xs text-muted-foreground transition-[color,border-color,transform] duration-200 active:scale-[0.97] hover:border-border-strong hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
 						copied && "border-success text-success-foreground",
 					)}
 				>
-					{copied ? <Check className="h-4 w-4" /> : <CopyIcon className="h-4 w-4" />}
+					{copied ? <Check className="h-3.5 w-3.5" /> : <CopyIcon className="h-3.5 w-3.5" />}
+					<span className="hidden sm:inline">{copied ? "已复制" : "复制"}</span>
 				</button>
 			</div>
 		</div>

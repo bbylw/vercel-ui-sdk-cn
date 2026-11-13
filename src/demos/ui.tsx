@@ -5,7 +5,7 @@ export const cx = (...parts: Array<string | false | null | undefined>) =>
 	parts.filter(Boolean).join(" ");
 
 const btnBase =
-	"inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50";
+	"inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition-[color,background-color,border-color,transform,filter] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50";
 
 export const btn = {
 	primary: cx(btnBase, "h-10 px-5 bg-brand text-primary-foreground hover:bg-primary-hover"),

@@ -8,42 +8,93 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { config } from "virtual:nimbus/config";
 import { withBase } from "@cloudflare/nimbus-docs/runtime";
 import Playground from "@/components/demos/Playground.astro";
+import ArchitectureDemo from "@/components/demos/ArchitectureDemo.astro";
 import FrameworkTabs from "@/components/demos/FrameworkTabs.astro";
 import BehaviorDemos from "@/components/demos/BehaviorDemos.astro";
 import CopyCommand from "@/components/demos/CopyCommand.astro";
+import LandingCode from "@/components/LandingCode.astro";
 import "@/styles/landing.css";
 
 const href = (p: string) => withBase(p, import.meta.env.BASE_URL);
 const docs = href("/docs/getting-started/installation");
 
 const nav = [
+	{ label: "架构", hash: "#architecture" },
 	{ label: "框架", hash: "#frameworks" },
 	{ label: "智能体", hash: "#agents" },
 	{ label: "行为", hash: "#behaviors" },
+	{ label: "问答", hash: "#faq" },
+];
+
+const heroSpecs = [
+	{ label: "55 个无样式组件", detail: "完整 ARIA 与键盘模型" },
+	{ label: "5 大框架通用", detail: "React · Vue · Svelte · Solid · Web" },
+	{ label: "WebMCP 原生桥接", detail: "createAgent + registerTools" },
 ];
 
 const stats = [
-	{ label: "工具调用", before: "16", after: "5", drop: "−69%" },
-	{ label: "文本 token", before: "39.8k", after: "6.8k", drop: "−83%" },
-	{ label: "耗时", before: "41s", after: "16s", drop: "−61%" },
-	{ label: "成本", before: "$0.073", after: "$0.032", drop: "−56%" },
+	{ label: "工具调用", before: "16", after: "5", drop: "−69%", afterWidth: "31%" },
+	{ label: "文本 token", before: "39.8k", after: "6.8k", drop: "−83%", afterWidth: "17%" },
+	{ label: "耗时", before: "41s", after: "16s", drop: "−61%", afterWidth: "39%" },
+	{ label: "成本", before: "$0.073", after: "$0.032", drop: "−56%", afterWidth: "44%" },
 ];
 
-const agentCode = `import { createAgent } from "@ui-sdk/react/agent"
+const agentActCode = `import { createAgent } from "@ui-sdk/react/agent"
 
 const agent = createAgent()
 
 // 一次 act 调用，驱动多个组件
 await agent.act({
   steps: [
-    { label: "启用通知", action: "setChecked", args: [true] },
-    { label: "通知渠道", action: "setValue", args: ["email"] },
+    { ref: "启用通知", action: "setChecked", args: [true] },
+    { ref: "通知渠道", action: "setValue", args: ["email"] },
   ],
 })`;
+
+const agentPermissionsCode = `import { createAgent } from "@ui-sdk/react/agent"
+
+const agent = createAgent({
+  // 重要操作触发 data-agent-confirm 人工确认
+  allow: ({ component, action, confirm }) => {
+    if (confirm) return window.confirm(confirm)
+    return component === "select" || action === "setChecked"
+  },
+})
+
+// 组件回调也可检查来源并在应用前拦截：
+// onValueChange={(v, details) => details.source === "agent" && details.cancel()}`;
+
+const faqs = [
+	{
+		q: "ui-sdk 与常见带预设样式的组件库有什么本质区别？",
+		a: "ui-sdk 专注交付无样式的交互原语与状态机（键盘导航、焦点管理、顶层弹出层、WAI-ARIA 语义与表单状态），不注入预设 CSS，也不绑定 Tailwind 或特定 CSS-in-JS 方案。视觉层完全留给你的设计系统与 CSS Token。",
+		open: true,
+	},
+	{
+		q: "为什么同一套行为可以跨 React、Vue、Svelte、Solid 与 Web Components 运行？",
+		a: "所有组件的状态模型、ARIA 属性计算与事件规约都写在零依赖的 @ui-sdk/core 中；各框架适配器只负责把这些核心部件装配为对应框架的响应式原语，因此交互习惯、快捷键与回调签名在技术栈之间保持一致。",
+	},
+	{
+		q: "让智能体直接驱动界面，会不会越权操作或读取敏感输入？",
+		a: "不会。bridge 提供 allow 权限回调、组件级 data-agent-confirm 二次确认、data-agent-hidden 区域屏蔽以及 data-agent-secret 脱敏（密码、银行卡号、一次性验证码默认输出为 \"[redacted]\"）。所有变更回调中的 details.source 都会标识 \"agent\"，随时可调用 details.cancel() 拦截。",
+	},
+	{
+		q: "能直接接入大模型 Tool Calling 或浏览器 WebMCP 吗？",
+		a: "可以。createAgent 暴露了 snapshot()、act() 与 query() 等结构化方法，可直接按 JSON Schema 接入模型工具链；在支持 document.modelContext 的环境中，使用 registerTools(agent, { allow }) 即可注册原生 WebMCP 工具并逐条审批动作。",
+	},
+	{
+		q: "旧项目需要一次性重构吗，还是可以按组件渐进接入？",
+		a: "完全支持按需渐进引入。每个组件都有独立子路径入口（如 @ui-sdk/react/select、@ui-sdk/react/dialog），未引用的组件与智能体模块不会被打包。建议优先替换组合框、弹出菜单或模态框等高交互复杂度控件。",
+	},
+	{
+		q: "文档中的智能体基准对比数据是如何得出的？",
+		a: "在同一多步界面任务下，将传统的「截图识别 + 坐标点击」路径与 ui-sdk 的结构化动作执行（agent.act）对比测得：工具调用从 16 次降至 5 次（−69%），文本 token 从 39.8k 降至 6.8k（−83%），耗时从 41s 降至 16s（−61%），成本从 $0.073 降至 $0.032（−56%）。",
+	},
+];
 ---
 
 <BaseLayout
-	title="UI SDK · 界面行为，而非样式"
+	title="界面行为，而非样式"
 	description="ui-sdk 是一套界面行为库：键盘导航、焦点管理、选择、弹出层与 ARIA 语义。组件不渲染样式，一次编写，运行在 React、Vue、Svelte、Solid 与 Web Components。"
 >
 	<div class="landing">
@@ -56,11 +107,11 @@ await agent.act({
 		<!-- Sticky navigation -->
 		<header class="landing-nav">
 			<div class="mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 px-6 lg:px-8">
-				<a href={href("/")} class="flex shrink-0 items-center gap-2 text-foreground no-underline transition-opacity hover:opacity-70">
+				<a href={href("/")} class="flex shrink-0 items-center gap-2 text-foreground no-underline transition-opacity hover:opacity-75">
 					<Logo class="h-5 w-5 text-brand" />
 					<span class="font-semibold tracking-tight text-[0.9375rem]">{config.title}</span>
 				</a>
-				<nav aria-label="页面导航" class="hidden items-center gap-1 md:flex">
+				<nav aria-label="页面导航" class="landing-nav-links hidden items-center gap-0.5 md:flex">
 					{nav.map((n) => (
 						<a href={n.hash} data-nav class="landing-nav-link">{n.label}</a>
 					))}
@@ -88,137 +139,233 @@ await agent.act({
 						aria-label="打开导航菜单"
 						class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:hidden"
 					>
-						<Icon name="ph:list" class="h-4 w-4" />
+						<span data-menu-icon-open class="inline-flex"><Icon name="ph:list" class="h-4 w-4" /></span>
+						<span data-menu-icon-close hidden class="inline-flex"><Icon name="ph:x" class="h-4 w-4" /></span>
 					</button>
 					<a
 						href={docs}
-						class="ms-1 hidden h-8 items-center rounded-lg bg-brand px-3.5 text-[0.8125rem] font-medium text-primary-foreground no-underline transition-colors hover:bg-primary-hover sm:inline-flex"
+						class="ms-1 hidden h-8 items-center rounded-lg bg-brand px-3.5 text-[0.8125rem] font-medium text-primary-foreground no-underline transition-[background-color,transform] duration-200 active:scale-[0.98] hover:bg-primary-hover sm:inline-flex"
 					>
 						快速开始
 					</a>
 				</div>
 			</div>
 			<div id="mobile-menu" data-menu-panel hidden class="landing-menu md:hidden">
-				<nav aria-label="页面导航" class="mx-auto flex max-w-7xl flex-col gap-1 px-6 py-4">
+				<nav aria-label="移动端导航" class="mx-auto flex max-w-7xl flex-col gap-1 px-6 py-4">
 					{nav.map((n) => (
 						<a href={n.hash} data-nav class="landing-menu-link">{n.label}</a>
 					))}
 					<a href={docs} class="landing-menu-link">文档</a>
 					<a
 						href={docs}
-						class="mt-2 inline-flex h-10 items-center justify-center rounded-lg bg-brand px-4 text-sm font-medium text-primary-foreground no-underline transition-colors hover:bg-primary-hover"
+						class="mt-2 inline-flex h-10 items-center justify-center rounded-lg bg-brand px-4 text-sm font-medium text-primary-foreground no-underline transition-[background-color,transform] duration-200 active:scale-[0.98] hover:bg-primary-hover"
 					>
 						快速开始
 					</a>
 				</nav>
 			</div>
+			<div class="scroll-progress" aria-hidden="true"></div>
 		</header>
 
 		<main id="main-content" tabindex="-1">
 			<!-- Hero -->
 			<section class="relative">
-				<div class="mx-auto grid max-w-7xl items-center gap-12 px-6 pb-16 pt-16 lg:grid-cols-[1.05fr_1fr] lg:gap-10 lg:px-8 lg:pb-24 lg:pt-24">
-					<div class="flex flex-col items-start">
-						<p class="hero-enter mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-3 py-1 font-mono text-xs text-muted-foreground" style="--i:0">
+				<div class="mx-auto grid max-w-7xl items-center gap-12 px-6 pb-16 pt-14 lg:grid-cols-[1.02fr_1fr] lg:gap-12 lg:px-8 lg:pb-24 lg:pt-20">
+					<div class="flex min-w-0 flex-col items-start">
+						<p class="hero-enter mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 font-mono text-xs text-muted-foreground shadow-sm" style="--i:0">
 							<span class="h-1.5 w-1.5 rounded-full bg-agent"></span>
 							为智能体时代而生的界面行为
 						</p>
-						<h1 class="hero-enter text-[clamp(2.5rem,6vw,4.25rem)] font-semibold leading-[1.05] tracking-tight text-foreground" style="--i:1">
+						<h1 class="hero-enter text-balance text-[clamp(2.5rem,5.5vw,4rem)] font-semibold leading-[1.08] tracking-tight text-foreground" style="--i:1">
 							界面<span class="text-brand">行为</span>，<br />而非样式。
 						</h1>
-						<p class="hero-enter mt-6 max-w-xl text-[1.0625rem] leading-relaxed text-muted-foreground" style="--i:2">
-							ui-sdk 是一套界面行为库：键盘导航、焦点管理、选择、弹出层、拖放，以及它们所需的 ARIA 语义。组件本身不渲染任何样式。同一套行为运行在 React、Vue、Svelte、Solid 与 Web Components 中，外观完全交给你的设计系统。
+						<p class="hero-enter mt-6 max-w-xl text-pretty text-base leading-relaxed text-muted-foreground sm:text-[1.0625rem]" style="--i:2">
+							ui-sdk 是一套无样式界面行为库：键盘导航、焦点管理、选择、弹出层、拖放与完整 ARIA 语义。同一套行为运行在 React、Vue、Svelte、Solid 与 Web Components 中，视觉呈现完全交给你的设计系统。
 						</p>
 						<div class="hero-enter mt-8 flex flex-wrap items-center gap-3" style="--i:3">
 							<a
 								href={docs}
-								class="inline-flex h-11 items-center rounded-lg bg-brand px-6 text-sm font-medium text-primary-foreground no-underline transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+								class="group inline-flex h-11 items-center gap-2 rounded-lg bg-brand px-5 text-sm font-medium text-primary-foreground no-underline transition-[background-color,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
 							>
-								快速开始
+								<span>快速开始</span>
+								<Icon name="ph:arrow-right" class="h-4 w-4 transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-0.5" />
 							</a>
 							<a
 								href={href("/docs/components")}
-								class="inline-flex h-11 items-center rounded-lg border border-border-strong bg-card px-6 text-sm font-medium text-foreground no-underline transition-colors hover:border-brand hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+								class="inline-flex h-11 items-center rounded-lg border border-border-strong bg-card px-5 text-sm font-medium text-foreground no-underline transition-[border-color,color,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] hover:border-brand hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
 							>
 								浏览组件
 							</a>
 						</div>
-						<p class="hero-enter mt-7 font-mono text-xs text-muted-foreground" style="--i:4">
-							55 个组件&nbsp;&nbsp;·&nbsp;&nbsp;5 个框架&nbsp;&nbsp;·&nbsp;&nbsp;零样式依赖
-						</p>
+						<dl class="hero-enter mt-9 grid w-full max-w-xl grid-cols-1 gap-3 border-t border-border pt-6 sm:grid-cols-3" style="--i:4">
+							{heroSpecs.map((item) => (
+								<div class="flex flex-col gap-0.5">
+									<dt class="font-mono text-xs font-medium text-foreground">{item.label}</dt>
+									<dd class="text-xs text-muted-foreground">{item.detail}</dd>
+								</div>
+							))}
+						</dl>
 					</div>
-					<div class="hero-enter relative" style="--i:2">
-						<div class="absolute -inset-3 -z-10 rounded-3xl bg-gradient-to-br from-brand/15 via-transparent to-agent/10 blur-2xl" aria-hidden="true"></div>
+					<div class="hero-enter relative min-w-0" style="--i:2">
+						<div class="pointer-events-none absolute -inset-2 -z-10 rounded-3xl bg-brand/8 blur-2xl" aria-hidden="true"></div>
 						<Playground />
 					</div>
 				</div>
 			</section>
 
-			<!-- Frameworks -->
-			<section id="frameworks" data-section class="landing-section" style="--section-accent: var(--color-brand)">
+			<!-- Architecture -->
+			<section id="architecture" data-section tabindex="-1" class="landing-section" style="--section-accent: var(--color-brand)">
 				<div class="section-inner">
 					<div class="reveal mb-10 max-w-2xl">
-						<h2 class="flex items-baseline gap-3 text-[1.75rem] font-semibold tracking-tight text-foreground">
-							<span class="font-mono text-base font-normal text-brand">01</span>
-							一次编写，五个框架通用
+						<p class="section-mark mb-3">01 · 分层架构</p>
+						<h2 class="text-balance text-[1.75rem] font-semibold tracking-tight text-foreground sm:text-[2rem]">
+							行为层与视觉层彻底解耦
 						</h2>
-						<p class="mt-4 text-[1.0625rem] leading-relaxed text-muted-foreground">
-							行为与框架无关。每个组件都从独立入口导入，组合方式在各框架间保持一致。换框架时，交互逻辑、键盘模型与无障碍语义原样保留。
+						<p class="mt-4 text-pretty text-[1.0625rem] leading-relaxed text-muted-foreground">
+							<code class="rounded bg-accent px-1.5 py-0.5 font-mono text-[0.875em] text-foreground">@ui-sdk/core</code> 掌管状态机、键盘循环与无障碍语义，框架包仅做轻量绑定，组件自身零预设样式。点按层级切换架构视图，或直接开关右侧控件样式。
 						</p>
 					</div>
-					<div class="reveal" style="--reveal-i:1">
+					<div class="reveal min-w-0" style="--reveal-i:1">
+						<ArchitectureDemo />
+					</div>
+				</div>
+			</section>
+
+			<!-- Frameworks -->
+			<section id="frameworks" data-section tabindex="-1" class="landing-section" style="--section-accent: var(--color-brand)">
+				<div class="section-inner">
+					<div class="reveal mb-10 max-w-2xl">
+						<p class="section-mark mb-3">02 · 跨框架</p>
+						<h2 class="text-balance text-[1.75rem] font-semibold tracking-tight text-foreground sm:text-[2rem]">
+							一次编写，五个框架通用
+						</h2>
+						<p class="mt-4 text-pretty text-[1.0625rem] leading-relaxed text-muted-foreground">
+							行为与框架无关。每个组件都从独立入口导入，组合方式在各框架间保持一致。切换技术栈时，交互逻辑、键盘模型与无障碍语义原样保留。
+						</p>
+					</div>
+					<div class="reveal min-w-0" style="--reveal-i:1">
 						<FrameworkTabs />
 					</div>
 				</div>
 			</section>
 
 			<!-- Agents -->
-			<section id="agents" data-section class="landing-section" style="--section-accent: var(--color-agent)">
+			<section id="agents" data-section tabindex="-1" class="landing-section" style="--section-accent: var(--color-agent)">
 				<div class="section-inner">
 					<div class="grid gap-12 lg:grid-cols-2 lg:gap-16">
-						<div class="reveal self-start lg:sticky lg:top-24">
-							<h2 class="flex items-baseline gap-3 text-[1.75rem] font-semibold tracking-tight text-foreground">
-								<span class="font-mono text-base font-normal text-agent">02</span>
+						<div class="reveal min-w-0 self-start lg:sticky lg:top-24">
+							<p class="section-mark mb-3">03 · 智能体桥</p>
+							<h2 class="text-balance text-[1.75rem] font-semibold tracking-tight text-foreground sm:text-[2rem]">
 								智能体直接驱动界面
 							</h2>
-							<p class="mt-4 text-[1.0625rem] leading-relaxed text-muted-foreground">
+							<p class="mt-4 text-pretty text-[1.0625rem] leading-relaxed text-muted-foreground">
 								每个组件都暴露语义化的动作与状态快照。智能体不必截图、点击坐标或解析 DOM，而是调用 <code class="rounded bg-accent px-1.5 py-0.5 font-mono text-[0.875em] text-foreground">setChecked</code>、<code class="rounded bg-accent px-1.5 py-0.5 font-mono text-[0.875em] text-foreground">setValue</code> 这样的动作，一次 <code class="rounded bg-accent px-1.5 py-0.5 font-mono text-[0.875em] text-foreground">act</code> 完成多步操作。
 							</p>
-							<p class="mt-4 text-[1.0625rem] leading-relaxed text-muted-foreground">
-								同一个界面，人类用键盘和指针操作，智能体用 API 操作。两者读写的是同一份状态。
+							<p class="mt-4 text-pretty text-[1.0625rem] leading-relaxed text-muted-foreground">
+								同一个界面，人类用键盘和指针操作，智能体用 API 操作。两者读写的是同一份状态，并通过 <code class="rounded bg-accent px-1.5 py-0.5 font-mono text-[0.875em] text-foreground">allow</code> 守卫敏感动作。
 							</p>
-							<a
-								href={href("/docs/agents")}
-								class="mt-6 inline-flex items-center text-sm font-medium text-agent-foreground no-underline underline-offset-4 transition-colors hover:underline"
-							>
-								了解智能体桥
-							</a>
-							<div class="mt-8 overflow-hidden rounded-xl border border-border bg-card shadow-lg">
-								<div class="flex items-center gap-2 border-b border-border bg-muted/40 px-4 py-2.5">
-									<span class="h-1.5 w-1.5 rounded-full bg-agent"></span>
-									<span class="font-mono text-xs text-muted-foreground">agent.ts</span>
+							<div class="mt-6 flex flex-wrap items-center gap-5">
+								<a
+									href={href("/docs/agents")}
+									class="group inline-flex items-center gap-1.5 text-sm font-medium text-agent-foreground no-underline underline-offset-4 transition-colors hover:underline"
+								>
+									<span>了解智能体桥</span>
+									<Icon name="ph:arrow-right" class="h-3.5 w-3.5 transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-0.5" />
+								</a>
+								<a
+									href={href("/docs/agents/permissions")}
+									class="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline underline-offset-4 transition-colors hover:text-foreground hover:underline"
+								>
+									<span>查看权限模型</span>
+								</a>
+							</div>
+							<div data-agent-tabs class="mt-8 overflow-hidden rounded-xl border border-border bg-card shadow-lg">
+								<div class="flex items-center justify-between gap-2 border-b border-border bg-muted/40 px-3 py-2">
+									<div role="tablist" aria-label="智能体代码模式" class="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
+										<button
+											type="button"
+											role="tab"
+											id="agent-tab-act"
+											aria-selected="true"
+											aria-controls="agent-panel-act"
+											data-agent-tab="act"
+											data-agent-code={agentActCode}
+											class="agent-tab"
+										>
+											<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-agent" aria-hidden="true"></span>
+											<span>agent.ts</span>
+										</button>
+										<button
+											type="button"
+											role="tab"
+											id="agent-tab-permissions"
+											aria-selected="false"
+											aria-controls="agent-panel-permissions"
+											tabindex="-1"
+											data-agent-tab="permissions"
+											data-agent-code={agentPermissionsCode}
+											class="agent-tab"
+										>
+											<span>permissions.ts</span>
+										</button>
+									</div>
+									<button
+										type="button"
+										data-landing-copy={agentActCode}
+										aria-label="复制当前示例代码"
+										class="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-0.5 font-mono text-[0.6875rem] text-muted-foreground transition-[color,border-color,transform] duration-200 active:scale-[0.97] hover:border-border-strong hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring data-[copied=true]:border-success data-[copied=true]:text-success-foreground"
+									>
+										<Icon name="ph:copy" class="h-3 w-3" />
+										<span data-copy-label>复制</span>
+									</button>
 								</div>
-								<pre class="overflow-x-auto p-4 font-mono text-[0.8125rem] leading-relaxed text-foreground"><code>{agentCode}</code></pre>
+								<div role="tabpanel" id="agent-panel-act" aria-labelledby="agent-tab-act" data-agent-panel="act">
+									<LandingCode code={agentActCode} lang="ts" />
+								</div>
+								<div role="tabpanel" id="agent-panel-permissions" aria-labelledby="agent-tab-permissions" data-agent-panel="permissions" hidden>
+									<LandingCode code={agentPermissionsCode} lang="ts" />
+								</div>
 							</div>
 						</div>
-						<div class="flex flex-col gap-4">
-							<p class="reveal text-sm font-medium text-muted-foreground">同一任务，智能体桥相对于截图点击的基准对比：</p>
+						<div class="flex min-w-0 flex-col gap-4">
+							<p class="reveal text-sm font-medium text-muted-foreground">同一任务下，智能体桥与截图点击方案的基准对比：</p>
 							<div class="grid gap-4 sm:grid-cols-2">
 								{stats.map((s, i) => (
-									<div class="reveal rounded-xl border border-border bg-card p-5" style={`--reveal-i:${i}`}>
-										<p class="text-[0.8125rem] text-muted-foreground">{s.label}</p>
-										<p class="stat-figure mt-3 flex items-baseline gap-2 text-foreground">
-											<span class="text-lg text-muted-foreground line-through decoration-border-strong">{s.before}</span>
-											<span class="text-3xl font-semibold">{s.after}</span>
-										</p>
-										<p class="stat-figure mt-3 inline-flex rounded-md bg-agent-muted px-2 py-0.5 text-xs font-medium text-agent-foreground">{s.drop}</p>
+									<div class="reveal flex flex-col justify-between rounded-xl border border-border bg-card p-5 transition-colors duration-300 hover:border-border-strong" style={`--reveal-i:${i}`}>
+										<div>
+											<div class="flex items-center justify-between gap-2">
+												<p class="text-[0.8125rem] font-medium text-muted-foreground">{s.label}</p>
+												<span class="stat-figure rounded-md bg-agent-muted px-2 py-0.5 text-xs font-medium text-agent-foreground">{s.drop}</span>
+											</div>
+											<p class="stat-figure mt-3 flex items-baseline gap-2.5 text-foreground">
+												<span class="text-base text-muted-foreground line-through decoration-border-strong">{s.before}</span>
+												<span aria-hidden="true" class="text-xs text-muted-foreground">→</span>
+												<span class="text-3xl font-semibold">{s.after}</span>
+											</p>
+										</div>
+										<div class="mt-4 flex flex-col gap-1.5 border-t border-border pt-3" aria-hidden="true">
+											<div class="flex items-center justify-between font-mono text-[0.6875rem] text-muted-foreground">
+												<span>截图点击</span>
+												<span>{s.before}</span>
+											</div>
+											<div class="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+												<div class="h-full w-full rounded-full bg-border-strong"></div>
+											</div>
+											<div class="mt-1 flex items-center justify-between font-mono text-[0.6875rem] text-agent-foreground">
+												<span>ui-sdk</span>
+												<span>{s.after}</span>
+											</div>
+											<div class="h-1.5 w-full overflow-hidden rounded-full bg-agent-muted">
+												<div class="h-full rounded-full bg-agent" style={`width: ${s.afterWidth}`}></div>
+											</div>
+										</div>
 									</div>
 								))}
 							</div>
-							<div class="reveal rounded-xl border border-agent/30 bg-agent-muted/40 p-5" style="--reveal-i:4">
-								<p class="text-sm leading-relaxed text-foreground">
+							<div class="reveal min-w-0 rounded-xl border border-agent/30 bg-agent-muted/35 p-5" style="--reveal-i:4">
+								<p class="text-pretty text-sm leading-relaxed text-foreground">
 									<span class="font-semibold text-agent-foreground">来源可追溯。</span>
-									每次由智能体触发的变更都带有 <code class="rounded bg-card px-1.5 py-0.5 font-mono text-[0.875em]">source: "agent"</code>，界面可以据此区分人类操作与智能体操作。
+									每次变更事件均携带 <code class="rounded bg-card px-1.5 py-0.5 font-mono text-[0.875em]">details.source</code>（<code class="rounded bg-card px-1 py-0.5 font-mono text-[0.8125em]">"human"</code> 或 <code class="rounded bg-card px-1 py-0.5 font-mono text-[0.8125em]">"agent"</code>），界面与审计日志能清晰区分人的直接操作与智能体调用。
 								</p>
 							</div>
 						</div>
@@ -226,49 +373,108 @@ await agent.act({
 				</div>
 			</section>
 
+			<!-- Editorial tagline break -->
+			<section class="landing-section">
+				<div class="mx-auto max-w-5xl px-6 py-20 text-center lg:px-8 lg:py-24">
+					<p class="font-mono text-xs tracking-wider text-muted-foreground uppercase">设计哲学</p>
+					<p class="mt-5 text-balance text-[clamp(1.625rem,3.5vw,2.625rem)] font-semibold leading-[1.3] tracking-tight text-foreground">
+						<span class="tagline-line block" style="--tagline-i:0">外观完全交还给你的设计系统，</span>
+						<span class="tagline-line mt-1 block text-brand" style="--tagline-i:1">行为、无障碍与智能体接口由 ui-sdk 守住。</span>
+					</p>
+				</div>
+			</section>
+
 			<!-- Behaviors -->
-			<section id="behaviors" data-section class="landing-section" style="--section-accent: var(--color-warning)">
+			<section id="behaviors" data-section tabindex="-1" class="landing-section" style="--section-accent: var(--color-warning)">
 				<div class="section-inner">
 					<div class="reveal mb-10 max-w-2xl">
-						<h2 class="flex items-baseline gap-3 text-[1.75rem] font-semibold tracking-tight text-foreground">
-							<span class="font-mono text-base font-normal text-warning">03</span>
+						<p class="section-mark mb-3">04 · 核心行为</p>
+						<h2 class="text-balance text-[1.75rem] font-semibold tracking-tight text-foreground sm:text-[2rem]">
 							每个细节都已就位
 						</h2>
-						<p class="mt-4 text-[1.0625rem] leading-relaxed text-muted-foreground">
-							弹出层进入浏览器顶层、焦点锁定、Esc 关闭、方向键导航、屏幕阅读器播报。下面都是真实组件，试着操作它们。
+						<p class="mt-4 text-pretty text-[1.0625rem] leading-relaxed text-muted-foreground">
+							弹出层进入浏览器顶层、焦点锁定、Esc 关闭、方向键导航、工具栏切换与屏幕阅读器播报。下面都是真实组件，试着操作它们。
 						</p>
 					</div>
-					<div class="reveal" style="--reveal-i:1">
+					<div class="reveal min-w-0" style="--reveal-i:1">
 						<BehaviorDemos />
 					</div>
 				</div>
 			</section>
 
-			<!-- Get started -->
-			<section id="start" data-section class="landing-section" style="--section-accent: var(--color-brand)">
+			<!-- FAQ -->
+			<section id="faq" data-section tabindex="-1" class="landing-section" style="--section-accent: var(--color-brand)">
 				<div class="section-inner">
-					<div class="reveal mx-auto flex max-w-2xl flex-col items-center text-center">
-						<h2 class="text-[1.75rem] font-semibold tracking-tight text-foreground">几行代码，开始构建</h2>
-						<p class="mt-4 text-[1.0625rem] leading-relaxed text-muted-foreground">
-							安装核心与你的框架包，导入第一个组件。无需配置提供者，无需引入样式表。
-						</p>
+					<div class="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16">
+						<div class="reveal min-w-0">
+							<p class="section-mark mb-3">05 · 常见问题</p>
+							<h2 class="text-balance text-[1.75rem] font-semibold tracking-tight text-foreground sm:text-[2rem]">
+								选型前你可能想了解的事
+							</h2>
+							<p class="mt-4 text-pretty text-[1.0625rem] leading-relaxed text-muted-foreground">
+								覆盖架构边界、多框架适配、安全与权限模型，以及渐进式迁移方式。
+							</p>
+							<a
+								href={docs}
+								class="group mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-brand no-underline underline-offset-4 hover:underline"
+							>
+								<span>浏览完整文档</span>
+								<Icon name="ph:arrow-right" class="h-3.5 w-3.5 transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-0.5" />
+							</a>
+						</div>
+						<div class="flex min-w-0 flex-col gap-3">
+							{faqs.map((item, i) => (
+								<details
+									name="landing-faq"
+									open={item.open}
+									class="reveal faq-item"
+									style={`--reveal-i:${Math.min(i, 4)}`}
+								>
+									<summary class="faq-summary">
+										<span>{item.q}</span>
+										<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="faq-chevron h-4 w-4">
+											<path d="M4 6l4 4 4-4" />
+										</svg>
+									</summary>
+									<div class="faq-answer">
+										<p class="m-0">{item.a}</p>
+									</div>
+								</details>
+							))}
+						</div>
 					</div>
-					<div class="reveal mx-auto mt-8 max-w-2xl" style="--reveal-i:1">
-						<CopyCommand />
-					</div>
-					<div class="reveal mt-8 flex flex-wrap items-center justify-center gap-3" style="--reveal-i:2">
-						<a
-							href={docs}
-							class="inline-flex h-11 items-center rounded-lg bg-brand px-6 text-sm font-medium text-primary-foreground no-underline transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-						>
-							阅读快速开始
-						</a>
-						<a
-							href={href("/docs/components")}
-							class="inline-flex h-11 items-center rounded-lg border border-border-strong bg-card px-6 text-sm font-medium text-foreground no-underline transition-colors hover:border-brand hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-						>
-							浏览全部组件
-						</a>
+				</div>
+			</section>
+
+			<!-- Get started -->
+			<section id="start" data-section tabindex="-1" class="landing-section" style="--section-accent: var(--color-brand)">
+				<div class="section-inner">
+					<div class="reveal relative overflow-hidden rounded-3xl border border-border bg-card/90 px-6 py-12 text-center shadow-lg sm:px-10 sm:py-14">
+						<div class="mx-auto flex max-w-2xl flex-col items-center">
+							<p class="section-mark mb-3">06 · 快速上手</p>
+							<h2 class="text-balance text-[1.75rem] font-semibold tracking-tight text-foreground sm:text-[2.125rem]">几行代码，开始构建</h2>
+							<p class="mt-4 text-pretty text-[1.0625rem] leading-relaxed text-muted-foreground">
+								安装核心与你的框架适配器，立即导入首个组件，无需全局配置或预设样式表。
+							</p>
+						</div>
+						<div class="mx-auto mt-8 max-w-2xl min-w-0 text-left">
+							<CopyCommand />
+						</div>
+						<div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+							<a
+								href={docs}
+								class="group inline-flex h-11 items-center gap-2 rounded-lg bg-brand px-6 text-sm font-medium text-primary-foreground no-underline transition-[background-color,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+							>
+								<span>阅读快速开始</span>
+								<Icon name="ph:arrow-right" class="h-4 w-4 transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-0.5" />
+							</a>
+							<a
+								href={href("/docs/components")}
+								class="inline-flex h-11 items-center rounded-lg border border-border-strong bg-card px-6 text-sm font-medium text-foreground no-underline transition-[border-color,color,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] hover:border-brand hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+							>
+								浏览全部组件
+							</a>
+						</div>
 					</div>
 				</div>
 			</section>

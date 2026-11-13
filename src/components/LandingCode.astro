@@ -1,0 +1,24 @@
+---
+import { Code as AstroCode } from "astro:components";
+import type { ComponentProps } from "astro/types";
+
+type CodeProps = ComponentProps<typeof AstroCode>;
+
+interface Props {
+	code: string;
+	lang?: CodeProps["lang"];
+	class?: string;
+}
+
+const { code, lang = "tsx", class: className = "" } = Astro.props;
+---
+
+<div class={`landing-code-body ${className}`}>
+	<AstroCode
+		code={code}
+		lang={lang}
+		themes={{ light: "github-light", dark: "github-dark" }}
+		defaultColor={false}
+	/>
+</div>
+

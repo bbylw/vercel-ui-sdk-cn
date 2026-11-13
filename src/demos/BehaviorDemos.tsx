@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@ui-sdk/react/menu";
 import { Tooltip, TooltipContent, TooltipShortcut, TooltipTrigger } from "@ui-sdk/react/tooltip";
+import { Toggle } from "@ui-sdk/react/toggle";
 import {
 	Popover,
 	PopoverClose,
@@ -31,21 +32,29 @@ import { ChevronDown, DemoButton, Field, btn, cx, input, item, popup } from "./u
 function DemoCard({
 	name,
 	label,
+	note,
 	className,
 	children,
 }: {
 	name: string;
 	label: string;
+	note?: string;
 	className?: string;
 	children: React.ReactNode;
 }) {
 	return (
-		<div className={cx("flex flex-col rounded-xl border border-border bg-card p-5", className)}>
-			<div className="mb-4 flex items-baseline justify-between gap-2">
+		<div
+			className={cx(
+				"flex flex-col rounded-xl border border-border bg-card p-5 transition-colors duration-300 hover:border-border-strong",
+				className,
+			)}
+		>
+			<div className="mb-3 flex items-baseline justify-between gap-2">
 				<span className="text-[0.8125rem] font-medium text-foreground">{label}</span>
 				<span className="font-mono text-[0.6875rem] text-muted-foreground">{name}</span>
 			</div>
-			<div className="flex flex-1 flex-col justify-center">{children}</div>
+			{note && <p className="mb-4 text-xs leading-relaxed text-muted-foreground">{note}</p>}
+			<div className="mt-auto flex flex-col items-start justify-center">{children}</div>
 		</div>
 	);
 }
@@ -54,16 +63,19 @@ const stroke = { fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeL
 
 const TOOLS = [
 	{
+		id: "bold",
 		label: "加粗",
 		shortcut: "mod+b",
 		icon: <span className="text-sm font-bold">B</span>,
 	},
 	{
+		id: "italic",
 		label: "斜体",
 		shortcut: "mod+i",
 		icon: <span className="font-serif text-sm italic">I</span>,
 	},
 	{
+		id: "link",
 		label: "插入链接",
 		shortcut: "mod+k",
 		icon: (
@@ -73,6 +85,7 @@ const TOOLS = [
 		),
 	},
 	{
+		id: "code",
 		label: "代码",
 		shortcut: "mod+e",
 		icon: (
@@ -82,6 +95,7 @@ const TOOLS = [
 		),
 	},
 	{
+		id: "star",
 		label: "收藏",
 		shortcut: "mod+d",
 		icon: (
@@ -90,7 +104,7 @@ const TOOLS = [
 			</svg>
 		),
 	},
-];
+] as const;
 
 const MENU_LABELS: Record<string, string> = {
 	rename: "重命名",
@@ -102,6 +116,11 @@ const MENU_LABELS: Record<string, string> = {
 export function BehaviorDemos() {
 	const [name, setName] = useState("");
 	const [copied, setCopied] = useState(false);
+	const [activeTools, setActiveTools] = useState<string[]>(["bold"]);
+
+	function toggleTool(id: string, pressed: boolean) {
+		setActiveTools((prev) => (pressed ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter((t) => t !== id)));
+	}
 
 	async function copyLink() {
 		try {
@@ -116,7 +135,7 @@ export function BehaviorDemos() {
 
 	return (
 		<div className="grid gap-3 lg:grid-cols-6">
-			<DemoCard name="Menu" label="菜单" className="lg:col-span-2">
+			<DemoCard name="Menu" label="菜单" note="支持方向键导航、键入检索与 Esc 关闭。" className="lg:col-span-2">
 				<Menu
 					onAction={(value) => {
 						const label = MENU_LABELS[String(value)] ?? String(value);
@@ -140,7 +159,7 @@ export function BehaviorDemos() {
 				</Menu>
 			</DemoCard>
 
-			<DemoCard name="Popover" label="弹出框" className="lg:col-span-2">
+			<DemoCard name="Popover" label="弹出框" note="基于锚点定位，点击外部或按 Esc 轻关闭。" className="lg:col-span-2">
 				<Popover>
 					<PopoverTrigger className={btn.outline}>分享</PopoverTrigger>
 					<PopoverContent className={cx(popup, "w-80 p-4")}>
@@ -161,7 +180,7 @@ export function BehaviorDemos() {
 				</Popover>
 			</DemoCard>
 
-			<DemoCard name="Toast" label="轻提示" className="lg:col-span-2">
+			<DemoCard name="Toast" label="轻提示" note="堆叠队列管理，支持悬停展开、滑动清除与撤销。" className="lg:col-span-2">
 				<div className="flex flex-wrap gap-2">
 					<DemoButton variant="small" onClick={() => toast.success("更改已保存", { description: "所有更改已同步。" })}>
 						成功
@@ -186,7 +205,7 @@ export function BehaviorDemos() {
 				</div>
 			</DemoCard>
 
-			<DemoCard name="Dialog" label="对话框" className="lg:col-span-3">
+			<DemoCard name="Dialog" label="对话框" note="进入浏览器顶层渲染，打开锁定焦点、关闭自动还原。" className="lg:col-span-3">
 				<Dialog>
 					<DialogTrigger className={btn.outline}>新建项目</DialogTrigger>
 					<DialogContent>
@@ -219,7 +238,7 @@ export function BehaviorDemos() {
 				</Dialog>
 			</DemoCard>
 
-			<DemoCard name="AlertDialog" label="警告对话框" className="lg:col-span-3">
+			<DemoCard name="AlertDialog" label="警告对话框" note="高风险操作显式确认，禁用外部点击误关闭。" className="lg:col-span-3">
 				<AlertDialog
 					onOpenChange={(open, details) => {
 						if (!open && details.returnValue === "confirm")
@@ -244,23 +263,42 @@ export function BehaviorDemos() {
 				</AlertDialog>
 			</DemoCard>
 
-			<DemoCard name="Tooltip" label="文字提示 · 工具栏" className="lg:col-span-6">
-				<div className="flex flex-wrap items-center gap-1">
-					{TOOLS.map((t) => (
-						<Tooltip key={t.label} shortcut={t.shortcut}>
-							<TooltipTrigger
-								aria-label={t.label}
-								className="flex h-9 w-9 items-center justify-center rounded-md border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-							>
-								{t.icon}
-							</TooltipTrigger>
-							<TooltipContent className="demo-popup flex items-center gap-2">
-								{t.label}
-								<TooltipShortcut className="font-mono text-[0.625rem] opacity-70" />
-							</TooltipContent>
-						</Tooltip>
-					))}
-					<span className="ms-2 text-xs text-muted-foreground">悬停或聚焦图标查看提示与快捷键</span>
+			<DemoCard name="Tooltip + Toggle" label="文字提示 · 交互工具栏" className="lg:col-span-6">
+				<div className="flex w-full flex-wrap items-center justify-between gap-3">
+					<div className="flex flex-wrap items-center gap-1 rounded-lg border border-border bg-muted/40 p-1">
+						{TOOLS.map((t) => {
+							const isPressed = activeTools.includes(t.id);
+							return (
+								<Tooltip key={t.label} shortcut={t.shortcut}>
+									<TooltipTrigger
+										render={(triggerProps) => (
+											<Toggle
+												{...triggerProps}
+												pressed={isPressed}
+												onPressedChange={(p) => toggleTool(t.id, p)}
+												aria-label={t.label}
+												className="flex h-8 w-8 items-center justify-center rounded-md border border-transparent text-muted-foreground transition-[color,background-color,border-color,transform] duration-200 active:scale-[0.95] hover:bg-accent hover:text-foreground data-[pressed]:border-brand/40 data-[pressed]:bg-brand-wash data-[pressed]:text-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+											>
+												{t.icon}
+											</Toggle>
+										)}
+									/>
+									<TooltipContent className="demo-popup flex items-center gap-2">
+										{t.label}
+										<TooltipShortcut className="font-mono text-[0.625rem] opacity-70" />
+									</TooltipContent>
+								</Tooltip>
+							);
+						})}
+					</div>
+					<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+						<span>悬停查看快捷键，点击切换激活状态：</span>
+						<span className="font-mono text-foreground">
+							{activeTools.length > 0
+								? activeTools.map((id) => TOOLS.find((t) => t.id === id)?.label).join(" · ")
+								: "未激活"}
+						</span>
+					</div>
 				</div>
 			</DemoCard>
 		</div>

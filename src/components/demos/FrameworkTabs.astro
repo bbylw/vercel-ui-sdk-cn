@@ -1,5 +1,14 @@
 ---
-import { FrameworkTabs } from "@/demos/FrameworkTabs";
+import LandingCode from "@/components/LandingCode.astro";
+import { FRAMEWORKS, FrameworkTabs as Tabs } from "@/demos/FrameworkTabs";
+
+const byId = Object.fromEntries(FRAMEWORKS.map((f) => [f.value, f]));
 ---
 
-<FrameworkTabs client:visible />
+<Tabs client:visible>
+	<LandingCode slot="react" code={byId.react.code} lang={byId.react.lang} />
+	<LandingCode slot="vue" code={byId.vue.code} lang={byId.vue.lang} />
+	<LandingCode slot="svelte" code={byId.svelte.code} lang={byId.svelte.lang} />
+	<LandingCode slot="solid" code={byId.solid.code} lang={byId.solid.lang} />
+	<LandingCode slot="web" code={byId.web.code} lang={byId.web.lang} />
+</Tabs>
