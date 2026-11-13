@@ -39,34 +39,52 @@ const columns = [
 ---
 
 <footer class="landing-section relative border-t border-border">
-	<div class="mx-auto max-w-7xl px-6 py-14 lg:px-8">
-		<div class="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
-			<div class="flex flex-col gap-3">
-				<a href={href("/")} class="flex items-center gap-2 text-foreground no-underline transition-opacity hover:opacity-70">
-					<Logo class="h-5 w-5 text-brand" />
-					<span class="font-semibold tracking-tight">{config.title}</span>
-				</a>
+	<div class="mx-auto max-w-7xl px-5 py-10 sm:px-6 md:py-14 lg:px-8">
+		<div class="grid gap-8 md:grid-cols-[1.4fr_1fr_1fr_1fr] md:gap-10">
+			<div class="flex flex-col gap-3 border-b border-border/60 pb-6 md:border-b-0 md:pb-0">
+				<div class="flex items-center justify-between gap-3">
+					<a href={href("/")} class="flex items-center gap-2 text-foreground no-underline transition-opacity hover:opacity-70">
+						<Logo class="h-5 w-5 text-brand" />
+						<span class="font-semibold tracking-tight">{config.title}</span>
+					</a>
+					<a
+						href="#top"
+						aria-label="回到顶部"
+						class="inline-flex items-center gap-1 rounded-full border border-border bg-card/80 px-3 py-1.5 text-xs font-medium text-muted-foreground no-underline transition-colors hover:border-foreground/20 hover:text-foreground md:hidden"
+					>
+						<Icon name="ph:arrow-up" class="h-3.5 w-3.5" />
+						<span>顶部</span>
+					</a>
+				</div>
 				<p class="max-w-xs text-sm leading-relaxed text-muted-foreground">
 					界面行为，而非样式。键盘导航、焦点、选择与 ARIA，一次编写，五个框架通用。
 				</p>
 			</div>
-			{columns.map((col) => (
-				<nav aria-label={col.title} class="flex flex-col gap-2.5">
-					<h2 class="text-[0.8125rem] font-semibold text-foreground">{col.title}</h2>
-					{col.links.map((link) => (
-						<a
-							href={link.href}
-							target={link.external ? "_blank" : undefined}
-							rel={link.external ? "noopener" : undefined}
-							class="w-fit text-sm text-muted-foreground no-underline underline-offset-4 transition-colors hover:text-foreground hover:underline"
-						>
-							{link.label}
-						</a>
-					))}
-				</nav>
-			))}
+			<div class="grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-3 md:contents">
+				{columns.map((col, idx) => (
+					<nav
+						aria-label={col.title}
+						class={`flex flex-col gap-1 ${idx === columns.length - 1 ? "col-span-2 border-t border-border/60 pt-5 sm:col-span-1 sm:border-t-0 sm:pt-0" : ""}`}
+					>
+						<h2 class="mb-1 text-xs font-semibold tracking-wide text-foreground/90">{col.title}</h2>
+						<div class={idx === columns.length - 1 ? "grid grid-cols-2 gap-x-6 gap-y-0.5 sm:flex sm:flex-col sm:gap-1" : "flex flex-col gap-0.5 sm:gap-1"}>
+							{col.links.map((link) => (
+								<a
+									href={link.href}
+									target={link.external ? "_blank" : undefined}
+									rel={link.external ? "noopener" : undefined}
+									class="inline-flex min-h-8 w-fit items-center gap-1 text-sm text-muted-foreground no-underline underline-offset-4 transition-colors hover:text-foreground hover:underline"
+								>
+									<span>{link.label}</span>
+									{link.external && <Icon name="ph:arrow-up-right" class="h-3 w-3 opacity-55" />}
+								</a>
+							))}
+						</div>
+					</nav>
+				))}
+			</div>
 		</div>
-		<div class="mt-12 flex flex-col items-start justify-between gap-3 border-t border-border pt-6 sm:flex-row sm:items-center">
+		<div class="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border/80 pt-5 sm:mt-12 sm:pt-6">
 			<p class="font-mono text-xs text-muted-foreground">MIT License · Built with @ui-sdk/core</p>
 			{config.github && (
 				<a
@@ -74,11 +92,11 @@ const columns = [
 					target="_blank"
 					rel="noopener"
 					aria-label="GitHub 仓库"
-					class="flex items-center gap-2 font-mono text-xs text-muted-foreground no-underline transition-colors hover:text-foreground"
+					class="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/70 px-3 py-1.5 font-mono text-xs text-muted-foreground no-underline transition-colors hover:border-foreground/20 hover:text-foreground"
 				>
-					<Icon name="ph:github-logo" class="h-4 w-4" />
+					<Icon name="ph:github-logo" class="h-3.5 w-3.5" />
 					<span>vercel-labs/ui</span>
-					<Icon name="ph:arrow-up-right" class="h-3.5 w-3.5 opacity-60" />
+					<Icon name="ph:arrow-up-right" class="h-3 w-3 opacity-60" />
 				</a>
 			)}
 		</div>
