@@ -73,10 +73,9 @@ const columns = [
 									href={link.href}
 									target={link.external ? "_blank" : undefined}
 									rel={link.external ? "noopener" : undefined}
-									class="inline-flex min-h-8 w-fit items-center gap-1 text-sm text-muted-foreground no-underline underline-offset-4 transition-colors hover:text-foreground hover:underline"
+									class="inline-flex min-h-8 w-fit items-center text-sm text-muted-foreground no-underline underline-offset-4 transition-colors hover:text-foreground hover:underline"
 								>
-									<span>{link.label}</span>
-									{link.external && <Icon name="ph:arrow-up-right" class="h-3 w-3 opacity-55" />}
+									{link.label}
 								</a>
 							))}
 						</div>
@@ -96,7 +95,6 @@ const columns = [
 				>
 					<Icon name="ph:github-logo" class="h-3.5 w-3.5" />
 					<span>vercel-labs/ui</span>
-					<Icon name="ph:arrow-up-right" class="h-3 w-3 opacity-60" />
 				</a>
 			)}
 		</div>
