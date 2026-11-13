@@ -89,14 +89,14 @@ export function FrameworkTabs(slots: FrameworkSlots) {
 			<div className="border-b border-border bg-muted/40 px-3 pt-3 pb-1.5">
 				<TabsList
 					aria-label="选择框架"
-					className="max-w-full gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+					className="max-w-full gap-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden"
 				>
 					<TabsIndicator />
 					{FRAMEWORKS.map((f) => (
 						<TabsTab
 							key={f.value}
 							value={f.value}
-							className="shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-[0.8125rem] font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground data-[selected]:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+							className="shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-[0.8125rem] font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground data-selected:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
 						>
 							{f.label}
 						</TabsTab>

@@ -49,7 +49,7 @@ export function CopyCommand() {
 			</div>
 			<div className="flex items-center gap-3 px-4 py-4">
 				<span className="select-none font-mono text-sm text-agent" aria-hidden="true">$</span>
-				<code className="flex-1 select-all overflow-x-auto whitespace-nowrap font-mono text-sm text-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+				<code className="flex-1 select-all overflow-x-auto whitespace-nowrap font-mono text-sm text-foreground scrollbar-none [&::-webkit-scrollbar]:hidden">
 					{command}
 				</code>
 				<button

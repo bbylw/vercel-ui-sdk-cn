@@ -202,7 +202,7 @@ export function Playground() {
 								<Toggle
 									key={t.value}
 									value={t.value}
-									className="flex-1 rounded-md px-3 py-1.5 text-[0.8125rem] font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground data-[pressed]:bg-card data-[pressed]:text-brand data-[pressed]:shadow-sm"
+									className="flex-1 rounded-md px-3 py-1.5 text-[0.8125rem] font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground data-pressed:bg-card data-pressed:text-brand data-pressed:shadow-sm"
 								>
 									{t.label}
 								</Toggle>
