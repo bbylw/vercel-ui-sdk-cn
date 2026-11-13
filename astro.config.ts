@@ -7,7 +7,7 @@ import nimbus, {
 import { tableScroll } from "@cloudflare/nimbus-docs/markdown";
 
 const nimbusConfig = defineNimbusConfig({
-  site: "https://ui-sdk.dev",
+  site: "https://ui-sdk.ndjp.net",
   title: "UI SDK",
   description:
     "面向智能体时代的界面行为库：键盘导航、焦点管理、选择、弹出层与 ARIA 语义，一次编写，五个框架通用。",
