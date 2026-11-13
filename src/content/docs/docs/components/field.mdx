@@ -1,0 +1,152 @@
+---
+title: "字段"
+description: "Field 把表单控件与它的标签、描述和校验错误连起来，自动接好 id、for 与 aria-describedby。"
+sidebar:
+  order: 26
+---
+
+`Field`（字段）把一个表单控件与它的标签、描述和错误连接起来，并替你接好 `id`、`for` 与 `aria-describedby`。控件用库里的部件（如[输入框](/docs/components/input)、[文本域](/docs/components/textarea)、[选择器](/docs/components/select)、[复选框](/docs/components/checkbox)），它会自行接入所在字段。字段本身没有变更事件，状态从各部件的 data 属性或渲染函数读取。
+
+## 组合
+
+```text
+Field
+├── FieldLabel
+├── Input
+├── FieldDescription
+└── FieldError
+```
+
+`FieldLabel` 命名控件，`FieldDescription` 与显示中的 `FieldError` 描述控件。相关字段可放进字段集（见下文）。
+
+## 用法
+
+```tsx
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@ui-sdk/react/field";
+import { Input } from "@ui-sdk/react/input";
+
+function UsernameField() {
+  return (
+    <Field name="username">
+      <FieldLabel>用户名</FieldLabel>
+      <Input autoComplete="username" required />
+      <FieldDescription>这是你的公开名称。</FieldDescription>
+      <FieldError />
+    </Field>
+  );
+}
+```
+
+点击「用户名」会聚焦输入框。控件没有自己的 `name` 时，用字段的 `name` 提交；重置恢复控件默认值并隐藏错误，禁用控件不提交。
+
+## 校验与错误
+
+用 `required`、`type="email"`、`pattern` 等原生约束。错误在尝试提交后出现并随值更新，第一个无效控件获得焦点。`FieldError` 留空显示浏览器消息，用 `match="valueMissing"`、`match="typeMismatch"` 等给出自己的文案；加入错误部件会用页面里的消息取代浏览器校验气泡：
+
+```tsx
+<Field name="email">
+  <FieldLabel>邮箱</FieldLabel>
+  <Input type="email" required placeholder="hollis@example.com" />
+  <FieldError match="valueMissing">请输入邮箱地址。</FieldError>
+  <FieldError match="typeMismatch">请输入形如 hollis@example.com 的邮箱。</FieldError>
+</Field>
+```
+
+服务端或表单库给出的错误用 `invalid` 传入：`true` 立即显示，清空该值回到浏览器校验。给这条错误自己的文案并设 `match`（即 `match={true}`）；`invalid={false}` 隐藏无效态，但不会让一个原生无效控件通过校验：
+
+```tsx
+<Field name="email" invalid={serverError ? true : undefined}>
+  <FieldLabel>邮箱</FieldLabel>
+  <Input type="email" required onValueChange={() => setServerError(null)} />
+  <FieldError match="valueMissing">请输入邮箱地址。</FieldError>
+  {serverError && <FieldError match>{serverError}</FieldError>}
+</Field>
+```
+
+## 字段集
+
+`FieldSet` 把相关字段归到一个标题下，并可一起禁用。它是原生 `<fieldset>`，`FieldLegend` 是原生 `<legend>`，因此在脚本运行前就已命名并可禁用；标题保持为第一个子元素。`FieldGroup` 只是堆叠字段的 `<div>`，无角色无状态：
+
+```tsx
+<FieldSet disabled={sameAsShipping}>
+  <FieldLegend>账单地址</FieldLegend>
+  <FieldDescription>我们需要地址来配送订单。</FieldDescription>
+  <FieldGroup>
+    <Field name="street">
+      <FieldLabel>街道地址</FieldLabel>
+      <Input autoComplete="street-address" />
+    </Field>
+  </FieldGroup>
+</FieldSet>
+```
+
+直接放在字段集内、任何 `Field` 之外的 `FieldDescription` 描述整个字段集。禁用字段集会禁用其中的控件与嵌套字段集，并把它们的值排除出提交。字段集的标题也能为其中的[复选框组](/docs/components/checkbox)或[单选组](/docs/components/radio)命名，组无需自己的标签。
+
+## 自定义控件与渲染
+
+库里没有的控件（如原生 `<select>`）用 `FieldControl`，它渲染一个 `<input>`，或用 `render` 换成别的元素，同样接入字段：
+
+```tsx
+<Field>
+  <FieldLabel>部门</FieldLabel>
+  <FieldControl render={<select />} name="department">
+    <option value="design">设计</option>
+    <option value="engineering">工程</option>
+  </FieldControl>
+</Field>
+```
+
+每个部件都接受 `render`；作为函数时收到要展开的 props 与字段状态，`className`、`style` 也可为状态的函数。要让自定义控件像库里的那样接入字段，用 `useFieldControl()`：字段外返回 `null`，字段内返回 `name`、`disabled` 与 `props(props)`（合并 `id`、`aria-labelledby`、`aria-describedby`、`aria-invalid`、`disabled` 及字段 data 属性）。
+
+<Aside type="tip" title="优先用库里的控件">
+[智能体](/docs/agents)只能识别库里的组件，无法填写 `FieldControl`。有对应部件时优先用它。
+</Aside>
+
+## 样式与状态
+
+用 `data-invalid` / `data-valid` 表达校验，用 `data-focused`、`data-required`、`data-disabled` 表达其余状态。字段的每个部件都带同一组属性，因此标签能随控件一起变红。各部件的 `data-slot` 为 `field`、`field-label`、`field-control`、`field-description`、`field-error`、`field-set`、`field-legend`、`field-group`：
+
+```css
+[data-slot="field-label"][data-invalid] {
+  color: var(--color-danger);
+}
+[data-slot="field"][data-required] [data-slot="field-label"]::after {
+  content: " *";
+  color: var(--color-danger);
+}
+[data-slot="field-error"] {
+  color: var(--color-danger);
+  font-size: 0.8125rem;
+}
+```
+
+## API
+
+字段没有变更事件，从部件的 data 属性或渲染函数读状态。
+
+- `Field.name`（`string`）：控件未设自己的名字时，用它提交。
+- `Field.disabled`（`boolean`）：禁用控件并标记每个部件。
+- `Field.invalid`（`boolean`）：由你的代码决定是否显示为无效。`true` 立即显示错误，`false` 一律不显示，留空则在提交发现无效后走浏览器校验。
+- `FieldError.match`（`boolean | ValidityKey`）：这条错误何时显示。`true` 总显示、`false` 从不显示，某个校验标志（如 `"valueMissing"`）只对该问题显示，留空则任何问题都显示。
+- `FieldSet.disabled`（`boolean`）：禁用其中所有控件（标题里的除外）并排除出表单。
+
+渲染函数与状态类名可读到的状态：`disabled`、`required`、`focused`、`invalid`、`valid`；`FieldError` 另有当前问题的 `message`。
+
+## 键盘与无障碍
+
+- 标签用 `aria-labelledby` 命名控件，控件可接受原生 `<label for>` 时也一并接上；描述与显示中的错误用 `aria-describedby` 描述它，无效控件带 `aria-invalid`。
+- 点击文本字段的标签聚焦它；点击包裹字段的标签任意位置会勾选其控件。
+- 错误在表单尝试提交前保持隐藏，显示后随值更新；页面里的错误取代浏览器消息，第一个无效控件获得焦点，重置再次隐藏它们。
+- 字段集的标题命名整组，禁用字段集在脚本运行前即禁用其中控件并排除出表单。
+
+## 相关组件
+
+- [输入框](/docs/components/input)：单行文本控件。
+- [文本域](/docs/components/textarea)：多行文本控件。
+- [复选框](/docs/components/checkbox)：可勾选控件，使用字段的标签与描述。
+- [表单](/docs/concepts/forms)：共享的提交、重置与禁用行为。

@@ -1,0 +1,110 @@
+---
+title: "框架适配"
+description: "同一套行为核心，五个框架适配器：React、Vue、Svelte、Solid 与 Web Components 的安装、受控习惯用法、部件命名与无构建选项。"
+sidebar:
+  order: 91
+---
+
+ui-sdk 的行为住在框架无关的 `@ui-sdk/core` 里。每个框架有一个适配器，把同一套原语渲染成该框架的部件。**行为不变，换框架只换渲染方式**：键盘导航、焦点管理、选择、弹出层、ARIA、服务端渲染与从右到左支持在所有框架里一致。
+
+## 安装
+
+装框架适配器与 core（core 是 peer dependency，两者都装，组件与你用的助手共享同一份 core）：
+
+| 框架 | 适配器 | 行为核心 |
+| --- | --- | --- |
+| React | `@ui-sdk/react` | `@ui-sdk/core` |
+| Vue | `@ui-sdk/vue` | `@ui-sdk/core` |
+| Svelte | `@ui-sdk/svelte` | `@ui-sdk/core` |
+| Solid | `@ui-sdk/solid` | `@ui-sdk/core` |
+| Web Components | `@ui-sdk/web` | `@ui-sdk/core` |
+
+```bash
+bun add @ui-sdk/react @ui-sdk/core
+```
+
+React 需要 React 19 与 React DOM 19 或更新；用 TypeScript 时还需要 `@types/react` 19.2.10 或更新。
+
+## 按入口导入
+
+每个组件有自己的入口，没有根入口：
+
+```tsx
+import { Button } from "@ui-sdk/react/button";
+import { Select, SelectContent, SelectItem } from "@ui-sdk/react/select";
+```
+
+一个根与若干部件，按组件页的「组合」嵌套。换部件的元素用 `render`，不用 `as` 属性。这套形状在五个框架里相同。
+
+## 受控与不受控
+
+每个有值组件都支持两种模式：`defaultValue` 起步（不受控），或 `value` 加变更回调（受控）。回调签名是 `(value, details)`，`details` 带 `reason`、`source` 与 `cancel()`。各框架用各自的惯用法表达受控：
+
+| 框架 | 受控写法 | 变更回调 |
+| --- | --- | --- |
+| React | `value={x}` | `onValueChange={(x, details) => …}` |
+| Vue | `v-model="x"` | `@update:value` |
+| Svelte | `bind:value={x}` | `onvaluechange` |
+| Solid | `value={x}` | `onValueChange` |
+| Web Components | `.value = x`（属性/特性） | `value-change` 事件 |
+
+```tsx
+// React
+<Select value={role} onValueChange={(next) => setRole(next)}>…</Select>
+```
+
+```vue
+<!-- Vue -->
+<Select v-model="role">…</Select>
+```
+
+```svelte
+<!-- Svelte -->
+<Select bind:value={role}>…</Select>
+```
+
+多值组件（如多选 Select、ToggleGroup）的值永远是数组。详见[状态与事件](/docs/concepts/state-and-events)。
+
+## 智能体入口
+
+智能体桥从与组件相同的包导入：
+
+| 框架 | 导入自 |
+| --- | --- |
+| React | `@ui-sdk/react/agent` |
+| Vue | `@ui-sdk/vue/agent` |
+| Svelte | `@ui-sdk/svelte/agent` |
+| Solid | `@ui-sdk/solid/agent` |
+| Web Components | `@ui-sdk/web/agent` |
+
+详见[连接智能体](/docs/agents/connect)。
+
+## Web Components：无构建选项
+
+没有构建步骤的页面（如一个 Artifact）用两个标签加载元素与它们的默认样式：
+
+```html
+<script type="module" src="https://ui-sdk.dev/web.js"></script>
+<link rel="stylesheet" href="https://ui-sdk.dev/web.css" />
+```
+
+`web.js` 在每个标签首次出现时定义对应元素，所以省略只为定义元素的导入。需要原生行为的部件要把原生元素放在它里面：
+
+```html
+<ui-input-group>
+  <ui-input><input aria-label="搜索" /></ui-input>
+  <ui-input-clear><button aria-label="清除">×</button></ui-input-clear>
+</ui-input-group>
+```
+
+元素把控制器暴露在 `.api` 上。某个入口导出的助手来自它自己的文件，如 `createPopoverController` 来自 `https://ui-sdk.dev/web/popover.js`；构建自己的元素时从 `https://ui-sdk.dev/web/core.js` 导入行为、`definePrimitive` 与 `createParts`。单文件文档见 `https://ui-sdk.dev/web.md`。
+
+## 默认外观（可选）
+
+组件本身无样式。`@ui-sdk/core/web.css` 提供一套可选的默认外观；你也可以完全用自己的 CSS 或 Tailwind，通过 `data-slot` 与状态属性写样式。用 Tailwind 时在全局样式表顶部声明 `@layer ui-sdk;`（在 `@import "tailwindcss"` 之上）。详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## 相关页面
+
+- [行为与自定义组件](/docs/core)：用 core 构建 ui-sdk 没有的组件。
+- [安装](/docs/getting-started/installation)：在 React 应用里起步。
+- [部件与组合](/docs/concepts/parts-and-composition)：根与部件的通用形状。

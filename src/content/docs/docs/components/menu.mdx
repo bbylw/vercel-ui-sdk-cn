@@ -1,0 +1,159 @@
+---
+title: "菜单"
+description: "Menu 从按钮或右键区域选择动作与设置：子菜单、快捷键、复选与单选、上下文菜单与数据驱动，焦点与键盘导航全托管。"
+sidebar:
+  order: 55
+---
+
+`Menu`（菜单）从一个按钮或右键区域选择动作与设置。它负责焦点、方向键、键入定位（typeahead）与 dismiss；你提供部件与样式。选项是值而非动作时用[选择器](/docs/components/select)，任意交互内容用[弹出框](/docs/components/popover)，一排应用菜单用[菜单栏](/docs/components/menubar)。
+
+## 演示
+
+打开「操作」并选一项，菜单关闭并弹出轻提示报告结果：
+
+<DocDemo name="menu" />
+
+## 组合
+
+```text
+Menu
+├── MenuTrigger
+└── MenuContent
+    ├── MenuItem
+    └── MenuItem
+```
+
+给每个项一个 `value`，在根上处理 `onAction` 运行所选命令。`MenuGroup` 与 `MenuGroupLabel` 组织相关动作，`MenuSeparator` 分隔但不占焦点。`onAction` 或项的 `onSelect` 返回 Promise 时项进入待决态（`data-pending`、`aria-busy`、`aria-disabled`），菜单保持打开，resolve 后关闭，reject 则把错误留在项的 `error` 状态里供重试。
+
+## 用法
+
+```tsx
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@ui-sdk/react/menu";
+
+function Example() {
+  return (
+    <Menu onAction={(value) => run(value)}>
+      <MenuTrigger>操作</MenuTrigger>
+      <MenuContent>
+        <MenuItem value="rename">重命名</MenuItem>
+        <MenuItem value="duplicate">创建副本</MenuItem>
+      </MenuContent>
+    </Menu>
+  );
+}
+```
+
+项的 `shortcut`（如 `"mod+s"`）显示当前平台的按键提示并设置 `aria-keyshortcuts`；标记写法只是提示，按键处理由应用负责。装饰性图标放进 `MenuItemIcon`，屏幕阅读器与键入定位会忽略它，`mirror` 让方向性图标在 RTL 文本中翻转。
+
+## 子菜单
+
+嵌套 `MenuSub`、`MenuSubTrigger`、`MenuSubContent` 增加层级。悬停或按朝向子菜单的方向键打开；指针可以斜穿进子菜单而不会误选路过的项。Escape 只关子菜单并把焦点还给它的触发器。`delay` 是悬停等待毫秒数（默认 100），设在 Menu 上作用于其直接子菜单，设在 Sub 上作用于下一层。
+
+```tsx
+<MenuSub>
+  <MenuSubTrigger>查找</MenuSubTrigger>
+  <MenuSubContent>
+    <MenuItem value="find" shortcut="mod+f">查找…</MenuItem>
+    <MenuItem value="find-next" shortcut="mod+g">查找下一个</MenuItem>
+  </MenuSubContent>
+</MenuSub>
+```
+
+## 复选项与单选组
+
+`MenuCheckboxItem` 各自独立切换，默认选中后菜单保持打开；`checked` + `onCheckedChange` 受控，`defaultChecked` 非受控。`MenuRadioGroup` 里 `MenuRadioItem` 单选一个值，`value` / `defaultValue` / `onValueChange` 同理，`name` 用于在根回调里识别组。`MenuItemIndicator` 渲染勾选标记，`keepMounted` 在未选中时保留占位。`closeOnSelect` 可改变两类项的默认开合行为。
+
+```tsx
+<MenuCheckboxItem value="status-bar" defaultChecked>
+  <MenuItemIndicator keepMounted>
+    <CheckIcon aria-hidden="true" />
+  </MenuItemIndicator>
+  状态栏
+</MenuCheckboxItem>
+
+<MenuRadioGroup name="position" defaultValue="bottom">
+  <MenuGroupLabel>位置</MenuGroupLabel>
+  <MenuRadioItem value="top"><MenuItemIndicator />顶部</MenuRadioItem>
+  <MenuRadioItem value="bottom"><MenuItemIndicator />底部</MenuRadioItem>
+</MenuRadioGroup>
+```
+
+## 上下文菜单
+
+`MenuContextTrigger` 在右键或长按处打开菜单。给区域一个 tab stop（`tabIndex={0}`），Shift+F10 与上下文菜单键也能打开；在同一区域再次右键会移动已打开的菜单。设 `disabled` 则保留浏览器原生菜单。
+
+```tsx
+<Menu onAction={(value) => run(value)}>
+  <MenuContextTrigger tabIndex={0}>在此右键或长按</MenuContextTrigger>
+  <MenuContent>
+    <MenuItem value="back">后退</MenuItem>
+    <MenuItem value="reload">刷新</MenuItem>
+  </MenuContent>
+</Menu>
+```
+
+## 数据菜单与共享触发器
+
+`items` 接受 `MenuData`：动作、分组、复选、单选组与子菜单，字符串是标签即值的简写。数据菜单在关闭时也注册快捷键（`itemShortcuts={false}` 关闭）；根上的 `onCheckedChange` 以 `details.value` 报告复选项，`onValueChange` 以 `details.group` 报告单选组。
+
+多行共享一个菜单时，把外部触发器与菜单连到同一个 `createMenuController<Payload>()`：触发器传 `payload`，内容从 `state.payload` 读取，只有激活的触发器带展开态并收回焦点。`menu.open({ payload, anchor })` 从代码打开，Promise 在关闭时 resolve。参见[控制器](/docs/concepts/controllers)。
+
+## 样式与状态
+
+各部件的 `data-slot` 为 `menu-trigger`、`menu-context-trigger`、`menu-content`、`menu-item`、`menu-checkbox-item`、`menu-radio-item`、`menu-item-indicator`、`menu-item-icon` 等：
+
+- 内容：`data-open` / `data-closed`、`data-starting-style` / `data-ending-style`、`data-side`（实际落点）、`data-nested`（子菜单）、`data-presentation="popover" | "sheet"`、`data-has-icons`。
+- 项：`data-highlighted`（键盘或指针高亮）、`data-disabled`、`data-pending`、`data-destructive`、`data-has-icon`。
+- 复选与单选项及其指示器：`data-checked` / `data-unchecked`。
+
+内容上的 CSS 变量：`--anchor-width` / `--anchor-height`、`--available-width` / `--available-height`、`--transform-origin`、`--arrow-offset`；`presentation="sheet"` 时另有 `--drawer-progress`、`--drawer-dim` 等抽屉变量与 `--sheet-backdrop`。
+
+```css
+[data-slot="menu-content"] {
+  min-width: var(--anchor-width);
+  max-height: var(--available-height);
+  transform-origin: var(--transform-origin);
+}
+[data-slot="menu-item"][data-highlighted] {
+  background: var(--color-accent);
+}
+[data-slot="menu-item"][data-disabled] {
+  opacity: 0.5;
+}
+```
+
+`modal` 默认 `"pointer"`（外部按压只关菜单），`true` 再锁滚动并让页面 inert，`false` 让按压继续落到目标。`presentation="auto"` 在小型触摸屏上以底部面板呈现，子菜单原位替换当前层；上下文菜单与菜单栏里的菜单始终是 popover。详见[弹出层](/docs/concepts/popups)。
+
+## API
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `open` / `defaultOpen` | `boolean` | 受控 / 非受控的开合状态。 |
+| `onOpenChange` | `(open, details) => void` | 开合变更，`details.reason` 与 `cancel()`。 |
+| `onAction` | `(value, details) => unknown` | 普通项运行时回调；返回 Promise 进入待决态。 |
+| `items` | `MenuData` | 数据驱动的菜单，自动渲染并注册快捷键。 |
+| `itemShortcuts` | `boolean` | 数据菜单关闭时是否运行项的快捷键。 |
+| `loop` | `boolean` | 方向键是否首尾循环。 |
+| `delay` | `number` | 子菜单悬停打开的等待毫秒数，默认 100。 |
+| `modal` | `"pointer" \| boolean` | 模态级别，默认 `"pointer"`。 |
+| `dismissible` / `onDismissAttempt` | `boolean` / `function` | 拦截 Esc、外部按压等关闭并处理尝试。 |
+| `presentation` | `"popover" \| "sheet" \| "auto"` | 呈现方式，按每次打开决定。 |
+| `controller` | `MenuController` | 用 `createMenuController()` 创建。 |
+
+`MenuContent` 另有 `side`、`align`、`sideOffset`、`alignOffset`、`collisionPadding`、`anchor`、`finalFocus`、`keepMounted`、`container`；`MenuItem` 有 `value`、`label`、`disabled`、`destructive`、`shortcut`、`closeOnSelect`、`onSelect`。
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA menu button 模式：
+
+- 触发器：`Enter` / `Space` / `ArrowDown` 打开并聚焦首项，`ArrowUp` 聚焦末项。
+- 菜单内：`ArrowUp` / `ArrowDown` 移动（跳过分隔线与标签），`Home` / `End` 到首尾，键入字符按名称定位，`Enter` 运行并关闭，`Escape` 关闭并把焦点还给触发器，`Tab` 关闭菜单。
+- 子菜单：`ArrowRight` 进入，`ArrowLeft` 返回其触发器（RTL 反转）。
+- 禁用项保持可聚焦以便被发现，但不能运行；禁用触发器默认不可聚焦，`focusableWhenDisabled` 可保留 tab stop 以挂提示。
+
+## 相关组件
+
+- [菜单栏](/docs/components/menubar)：把多个 Menu 连成一个 Tab stop 的应用菜单栏。
+- [选择器](/docs/components/select)：选项是提交的值而非动作。
+- [弹出框](/docs/components/popover)：装任意交互内容而非命令列表。
+- [弹出层](/docs/concepts/popups)：定位、模态与 dismiss 的共享模型。

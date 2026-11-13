@@ -1,0 +1,71 @@
+---
+title: "部件与组合"
+description: "ui-sdk 的通用形状：一个根组件加若干部件，按固定树嵌套；用 render 换元素，而不是 as。"
+sidebar:
+  order: 1
+---
+
+所有 ui-sdk 组件共享同一种形状：一个**根**负责状态与行为，若干**部件**负责结构与可访问性。部件按组件页「Composition」给出的树嵌套，根把上下文传给部件，部件之间不需要手动连线。
+
+## 一棵组合树
+
+以选择器为例：
+
+```text
+Select
+├── SelectLabel
+├── SelectTrigger
+│   └── SelectValue
+└── SelectContent
+    ├── SelectItem
+    └── SelectItem
+```
+
+```tsx
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@ui-sdk/react/select";
+
+<Select defaultValue="push" items={channels}>
+  <SelectLabel>通知渠道</SelectLabel>
+  <SelectTrigger>
+    <SelectValue />
+  </SelectTrigger>
+  <SelectContent>
+    {channels.map((c) => (
+      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+    ))}
+  </SelectContent>
+</Select>
+```
+
+`SelectValue` 自动显示选中项的标签；`SelectLabel` 给触发器一个可访问名字。你只声明结构，行为由根注入。
+
+## 用 render 换元素
+
+部件默认渲染一个语义合适的元素（按钮、列表、标题等）。想换成别的元素，用 `render`，**不要**找 `as` 属性——ui-sdk 没有 `as`：
+
+```tsx
+<SelectTrigger render={<a href="/settings" />}>
+  <SelectValue />
+</SelectTrigger>
+```
+
+`render` 保留部件的全部行为与 ARIA，只替换底层元素。传一个元素或一个函数都可以。
+
+## 按入口导入
+
+每个组件一个入口：`@ui-sdk/react/select`、`@ui-sdk/react/dialog`……框架包没有根入口。这样打包器只带上你真正用到的行为。
+
+<Aside type="note" title="列表按值或 id 作 key">
+渲染项列表时用 `key={item.value}` 或稳定 id，不要用数组下标。下标 key 会在过滤、排序时错配状态与焦点。
+</Aside>
+
+## 自己造一个部件
+
+需要的组件不在库里时，用 `@ui-sdk/core` 的同一批行为自己组合，得到一致的键盘、焦点、服务端渲染与 RTL 支持。参见[行为与自定义组件](/docs/core)。

@@ -1,0 +1,26 @@
+---
+title: "组件总览"
+description: "55 个无样式行为组件，按基础、表单与输入、弹出层、导航与结构、数据展示分类。搜索并进入任意组件。"
+sidebar:
+  order: 0
+  label: "总览"
+---
+
+ui-sdk 的每个组件都只负责行为——键盘导航、焦点、选择、开合、ARIA 语义——一个像素的样式都不带。下面按用途分类索引全部 55 个组件，搜索中文名或英文 slug 即可跳转。
+
+<ComponentCatalog />
+
+## 怎么用这份目录
+
+- 每个组件页都给出**组合树**（根与部件如何嵌套）、**可运行用法**、**关键 API**、**状态属性与 CSS 变量**，以及键盘与无障碍行为。
+- 组件按[入口](/docs/concepts/parts-and-composition)导入，例如 `@ui-sdk/react/select`；没有根入口。
+- 外观用 `data-slot` 与 `data-*` 状态属性写，参见[样式与动画](/docs/concepts/styling-and-animation)。
+- 缺某个组件时，用 `@ui-sdk/core` 的同一套行为自己组合，参见[行为与自定义组件](/docs/core)。
+
+## 分类
+
+- **基础**：[按钮](/docs/components/button)、[分隔线](/docs/components/separator)。
+- **表单与输入**：从[输入框](/docs/components/input)、[复选框](/docs/components/checkbox)、[单选框](/docs/components/radio)到[选择器](/docs/components/select)、[组合框](/docs/components/combobox)、[日期选择器](/docs/components/date-picker)等 24 个。
+- **弹出层**：[对话框](/docs/components/dialog)、[警告对话框](/docs/components/alert-dialog)、[菜单](/docs/components/menu)、[弹出框](/docs/components/popover)、[轻提示](/docs/components/toast)、[文字提示](/docs/components/tooltip)等 11 个。
+- **导航与结构**：[标签页](/docs/components/tabs)、[折叠面板](/docs/components/accordion)、[树形视图](/docs/components/tree)、[工具栏](/docs/components/toolbar)、[分页](/docs/components/pagination)等 11 个。
+- **数据展示**：[头像](/docs/components/avatar)、[日历](/docs/components/calendar)、[进度条](/docs/components/progress)、[时间线](/docs/components/timeline)、[瀑布流](/docs/components/waterfall)等 7 个。

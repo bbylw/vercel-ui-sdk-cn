@@ -1,0 +1,159 @@
+---
+title: "分段控件"
+description: "SegmentedControl 在一排按钮里单选一个值：滑动的选中指示器、单个 Tab 停靠点、表单提交与只读态，行为同 radio 组。"
+sidebar:
+  order: 77
+---
+
+`SegmentedControl`（分段控件）在几个选项之间单选，比如「列表 / 网格」视图切换或外观设置。它像 radio 组一样工作：只有一个值、一个 Tab 停靠点，选中指示器滑到所选项背后。选项对应互斥的内容面板时用[标签页](/docs/components/tabs)；分段控件选择的是值本身，常参与表单提交。
+
+## 组合
+
+```text
+SegmentedControl
+├── SegmentedControlIndicator
+├── SegmentedControlItem
+└── SegmentedControlItem
+```
+
+每个 `SegmentedControlItem` 要有唯一的 `value`，控件的值就是选中项的 value，指示器停在它背后。用 `aria-label` 命名控件，或放进带标签的 [Field](/docs/components/field)。不写 `defaultValue` 时初始没有选中项，`Tab` 落在第一个可用项上。
+
+## 用法
+
+```tsx
+import {
+  SegmentedControl,
+  SegmentedControlIndicator,
+  SegmentedControlItem,
+} from "@ui-sdk/react/segmented-control";
+
+function Example() {
+  return (
+    <SegmentedControl aria-label="视图" defaultValue="list">
+      <SegmentedControlIndicator />
+      <SegmentedControlItem value="list">列表</SegmentedControlItem>
+      <SegmentedControlItem value="grid">网格</SegmentedControlItem>
+      <SegmentedControlItem value="board">看板</SegmentedControlItem>
+    </SegmentedControl>
+  );
+}
+```
+
+`orientation="vertical"` 竖排选项；无论哪个方向，两轴的方向键都能在项间移动，与原生 radio 组一致。`loop`（默认 `true`）让方向键从末项绕回首项，设为 `false` 则停在两端。
+
+## 指示器
+
+`SegmentedControlIndicator` 测量选中项的位置与尺寸，写进自己的 CSS 变量；项或控件尺寸变化时重新测量，没有选中项时不产生盒子。把它放在控件内部，用变量画出滑动的背景：
+
+```css
+[data-slot="segmented-control"] {
+  position: relative;
+  display: inline-flex;
+  isolation: isolate;
+}
+[data-slot="segmented-control-indicator"] {
+  position: absolute;
+  z-index: -1;
+  top: var(--segmented-control-indicator-top);
+  left: var(--segmented-control-indicator-left);
+  width: var(--segmented-control-indicator-width);
+  height: var(--segmented-control-indicator-height);
+  border-radius: 0.375rem;
+  background: white;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+  transition-property: top, left, width, height;
+  transition-duration: 200ms;
+}
+```
+
+另有 `--segmented-control-indicator-right` / `-bottom` 给出到控件右、下边缘的距离，RTL 布局用它们代替 left。
+
+## 表单
+
+控件为每个项渲染一个隐藏的原生 radio 参与表单：`name` 是提交用的字段名（不写则不提交任何值），`required` 在未选中时用浏览器原生提示阻止提交，`form` 让它归属页面里指定 id 的表单。表单重置回到 `defaultValue`。`readOnly` 保住值并照常提交，项仍可聚焦，方向键只移动焦点不改选中。
+
+```tsx
+<form>
+  <SegmentedControl name="theme" defaultValue="system" required>
+    <SegmentedControlIndicator />
+    <SegmentedControlItem value="light">浅色</SegmentedControlItem>
+    <SegmentedControlItem value="dark">深色</SegmentedControlItem>
+    <SegmentedControlItem value="system">跟随系统</SegmentedControlItem>
+  </SegmentedControl>
+  <button type="submit">保存</button>
+  <button type="reset">重置</button>
+</form>
+```
+
+## 受控与控制器
+
+`value` 加 `onValueChange(value, details)` 接管选中值，`null` 表示都不选。`details.reason` 有 `item-press`、`list-navigation`、`reset`、`restore`、`imperative`，`details.cancel()` 可拦截。`createSegmentedControlController()`（来自 `@ui-sdk/react/segmented-control`）创建的控制器提供 `getValue / setValue / focus`，`setValue` 像用户按压一样走变更回调，禁用项与只读控件会忽略它。参见[控制器](/docs/concepts/controllers)。
+
+```tsx
+const [view, setView] = React.useState<string | null>("list");
+
+<SegmentedControl aria-label="视图" value={view} onValueChange={(next) => setView(next)}>
+  <SegmentedControlIndicator />
+  <SegmentedControlItem value="list">列表</SegmentedControlItem>
+  <SegmentedControlItem value="grid">网格</SegmentedControlItem>
+</SegmentedControl>;
+```
+
+`disabled` 禁用全部项：不可聚焦、不可更改、不提交值；单项 `disabled` 像禁用的原生 radio，方向键跳过它。包裹在禁用的 `fieldset` 里效果相同。
+
+## 样式与状态
+
+各部件带 `data-slot`：`segmented-control`、`segmented-control-item`、`segmented-control-indicator`。控件与项带 `data-disabled` / `data-readonly` / `data-required`，项另有 `data-checked` / `data-unchecked`，控件与指示器带 `data-orientation`。
+
+```css
+[data-slot="segmented-control"] {
+  gap: 2px;
+  padding: 2px;
+  border-radius: 0.5rem;
+  background: rgb(0 0 0 / 5%);
+}
+[data-slot="segmented-control-item"] {
+  padding: 0.25rem 0.75rem;
+}
+[data-slot="segmented-control-item"][data-checked] {
+  font-weight: 600;
+}
+[data-slot="segmented-control-item"][data-disabled] {
+  opacity: 0.4;
+}
+```
+
+## API
+
+根 `SegmentedControl` 的主要 props：
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `value` | `T \| null` | 选中项的 value，传入即受控，`null` 都不选。 |
+| `defaultValue` | `T \| null` | 非受控时初始选中项，表单重置回到它。 |
+| `onValueChange` | `(value, details) => void` | 值要变化时运行，`details.cancel()` 可拦截。 |
+| `name` | `string` | 表单提交的字段名，不写则不提交。 |
+| `form` | `string` | 归属的表单 id，控件不在该表单内时用。 |
+| `required` | `boolean` | 未选中时阻止表单提交。 |
+| `disabled` | `boolean` | 禁用全部项，不可聚焦、不提交。 |
+| `readOnly` | `boolean` | 可聚焦、照常提交，但不可更改。 |
+| `loop` | `boolean` | 方向键是否首尾环绕，默认 `true`。 |
+| `orientation` | `"horizontal" \| "vertical"` | 选项排列方向，默认横向。 |
+| `controller` | `object` | 用 `createSegmentedControlController()` 创建。 |
+
+`SegmentedControlItem` 必填 `value`，另有 `disabled`；指示器没有专属 props。
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA radio 组模式：每个项是带 `radio` 角色的按钮，外加一个参与表单的隐藏原生 radio；指示器是纯装饰，屏幕阅读器跳过。
+
+- `Tab` 进入控件，落在选中项或第一个可用项上，再按即离开，整个控件只有一个停靠点。
+- 方向键移到相邻项并选中它，跳过禁用项，默认首尾环绕；横竖两轴的方向键都有效。
+- `Space` 选中聚焦的项；`Enter` 提交所在表单。
+- 只读时方向键只移动焦点；禁用项不可聚焦。
+
+## 相关组件
+
+- [标签页](/docs/components/tabs)：选项对应互斥内容面板时的选择。
+- [Field](/docs/components/field)：给控件配上标签、说明与校验消息。
+- [表单](/docs/concepts/forms)：提交、重置与校验的通用约定。

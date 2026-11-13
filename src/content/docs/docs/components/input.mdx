@@ -1,0 +1,142 @@
+---
+title: "输入框"
+description: "Input 是用于短文本的原生输入框，可加清除按钮、环绕文字，并把值接入表单或受控状态，变更还带原因。"
+sidebar:
+  order: 29
+---
+
+`Input`（输入框）是用于姓名、邮箱、搜索这类短值的原生文本框。它在[字段](/docs/components/field)与表单中工作，并额外提供清除按钮、环绕文字与变更原因。多行文本用[文本域](/docs/components/textarea)，需要自由输入加候选列表用[组合框](/docs/components/combobox)，密码与文件分别用[密码输入](/docs/components/password-input)和[文件输入](/docs/components/file-input)。
+
+## 组合
+
+```text
+Input
+
+InputGroup
+├── Input
+└── InputClear
+```
+
+`Input` 渲染原生 `<input>`，`type`、`placeholder`、`autoComplete` 等原生属性直接传入。`InputGroup` 在它周围放文字或按钮，`InputClear` 清空它。
+
+## 用法
+
+```tsx
+import { Input, InputClear, InputGroup } from "@ui-sdk/react/input";
+
+function Example() {
+  return (
+    <InputGroup>
+      <Input type="search" aria-label="搜索" />
+      <InputClear aria-label="清空搜索" />
+    </InputGroup>
+  );
+}
+```
+
+## 字段与表单
+
+把输入框包进[字段](/docs/components/field)，即可获得可见标签、描述与错误；输入框没有自己的 `name` 时，字段会把它的 `name` 补给输入框：
+
+```tsx
+<Field name="username">
+  <FieldLabel>用户名</FieldLabel>
+  <Input autoComplete="username" required />
+  <FieldDescription>为你的账户选择一个唯一的用户名。</FieldDescription>
+  <FieldError />
+</Field>
+```
+
+`disabled` 禁止编辑、移出 Tab 顺序且不提交；`readOnly` 仍可聚焦、选中并提交，只是不能改。校验用 `required`、`type="email"`、`pattern` 等原生约束，字段在尝试提交后显示错误并随值更新。
+
+## 输入组与清除按钮
+
+`InputGroup` 在输入框两侧放展示文字或按钮，点击组内文字会聚焦输入框，文字本身不计入提交值。`InputClear` 仅在有可清除的文本时出现，按下后清空值、上报 `clear-press` 并把焦点还给输入框：
+
+```tsx
+<InputGroup>
+  <span>https://</span>
+  <Input aria-label="网站" placeholder="example.com" />
+  <InputClear aria-label="清空网站">
+    <XIcon aria-hidden="true" />
+  </InputClear>
+</InputGroup>
+```
+
+## 受控与过滤输入
+
+传 `value` 与 `onValueChange` 即可受控，原生 `onChange` 仍可用。在回调里调用 `details.cancel()` 可拒绝某次变更，文本与光标位置会恢复原状：
+
+```tsx
+const [name, setName] = React.useState("Hollis Grant");
+
+<Input value={name} onValueChange={(value) => setName(value)} />;
+
+<Input
+  inputMode="numeric"
+  maxLength={6}
+  onValueChange={(value, details) => {
+    if (!/^\d*$/.test(value)) details.cancel();
+  }}
+/>;
+```
+
+`onValueChange(value, details)` 的 `details.reason` 区分来源：键入为 `input-change`、清除按钮为 `clear-press`、表单重置为 `reset`、控制器为 `imperative`。
+
+## 控制器
+
+用 `createInputController()` 在输入框之外操作它，方法走与键入相同的变更回调：
+
+```tsx
+const [message] = React.useState(createInputController);
+
+<Input controller={message} aria-label="留言" />
+<button onClick={() => message.setValue("马上到！")}>快捷回复</button>
+<button onClick={() => message.clear()}>清空</button>
+<button onClick={() => message.focus()}>聚焦</button>
+```
+
+`getValue()` 读当前值，`setValue(value)` 与 `clear()` 像用户键入一样触发 `input`，被取消或无变化时返回 `false`。参见[控制器](/docs/concepts/controllers)。
+
+## 样式与状态
+
+各部件带 `data-slot`（`input`、`input-group`、`input-clear`），状态通过 data 属性表达：`data-filled`（有文本）、`data-disabled`、`data-readonly`、`data-required`。组内按钮聚焦时仍保留自己的焦点环，因此组的焦点环用 `:has(input:focus-visible)`：
+
+```css
+[data-slot="input"][data-filled] {
+  border-color: var(--color-brand);
+}
+[data-slot="input-group"]:has(input:focus-visible) {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+[data-slot="input-clear"][data-disabled] {
+  opacity: 0.4;
+}
+```
+
+## API
+
+`Input` 接受全部原生 input 属性，另加：
+
+- `value`（`string`）：受控值。
+- `defaultValue`（`string`）：初始值，表单重置回到它。
+- `onValueChange`（`(value: string, details) => void`）：用户改值时调用，`details.reason` 说明来源，`details.cancel()` 保留原值。
+- `controller`（`object`）：用 `createInputController()` 创建，从任意处读写。
+- `disabled` / `readOnly` / `required`（`boolean`）：禁用、只读、必填。
+
+`InputClear` 是一个 `<button>`，仅在有文本可清时渲染，清空所在组的输入框并聚焦它。
+
+## 键盘与无障碍
+
+- 给输入框可见的字段标签或 `aria-label`，给清除按钮一个无障碍名称。
+- 原生输入框保留标准的文本编辑、选择、自动补全与表单行为；点击标签聚焦输入框。
+- 表单尝试提交后，无效输入框被标记 `aria-invalid`；`data-filled` 跟随文本变化。
+- 清除按钮只在有文本时出现，按下后清空、上报原因并归还焦点；输入框禁用时清除按钮隐藏。
+
+## 相关组件
+
+- [字段](/docs/components/field)：提供标签、描述与校验错误。
+- [文本域](/docs/components/textarea)：多行文本输入。
+- [组合框](/docs/components/combobox)：自由输入并过滤候选项。
+- [文件输入](/docs/components/file-input)：拖放、预览与文件校验。

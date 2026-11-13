@@ -1,0 +1,178 @@
+---
+title: "菜单栏"
+description: "Menubar 把多个 Menu 连成一体：整条栏只占一个 Tab stop，方向键在菜单间移动，打开时悬停即切换。"
+sidebar:
+  order: 56
+---
+
+`Menubar`（菜单栏）把几个[菜单](/docs/components/menu)包在一起，连接它们的触发器：Tab 只进入整条栏一次，方向键在菜单间移动，已有菜单打开时指向另一个触发器即切换。单个按钮的动作列表用 Menu 即可；全局搜索式动作用[命令面板](/docs/components/command)。
+
+## 组合
+
+```text
+Menubar
+├── Menu
+│   ├── MenuTrigger
+│   └── MenuContent
+│       ├── MenuItem
+│       └── MenuItem
+└── Menu
+    ├── MenuTrigger
+    └── MenuContent
+        ├── MenuItem
+        └── MenuItem
+```
+
+每个 Menu 自动加入所在的 Menubar，没有单独的菜单栏触发器或项部件。页面上有多条栏时给 `aria-label` 命名以便区分。
+
+## 用法
+
+```tsx
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@ui-sdk/react/menu";
+import { Menubar } from "@ui-sdk/react/menubar";
+
+function Example() {
+  return (
+    <Menubar aria-label="应用">
+      <Menu>
+        <MenuTrigger>文件</MenuTrigger>
+        <MenuContent>
+          <MenuItem value="new">新建文件</MenuItem>
+          <MenuItem value="open">打开文件</MenuItem>
+        </MenuContent>
+      </Menu>
+      <Menu>
+        <MenuTrigger>编辑</MenuTrigger>
+        <MenuContent>
+          <MenuItem value="undo">撤销</MenuItem>
+          <MenuItem value="redo">重做</MenuItem>
+        </MenuContent>
+      </Menu>
+    </Menubar>
+  );
+}
+```
+
+## 子菜单
+
+子菜单仍用 Menu 的 `MenuSub`、`MenuSubTrigger`、`MenuSubContent`。朝向弹出层的方向键进入子菜单；在普通项上，同一个方向键则切到下一个顶层菜单，不必先退出当前菜单。
+
+```tsx
+<Menu>
+  <MenuTrigger>文件</MenuTrigger>
+  <MenuContent>
+    <MenuItem value="new">新建文件</MenuItem>
+    <MenuSub>
+      <MenuSubTrigger>分享</MenuSubTrigger>
+      <MenuSubContent>
+        <MenuItem value="email">邮件链接</MenuItem>
+        <MenuItem value="message">短信</MenuItem>
+      </MenuSubContent>
+    </MenuSub>
+  </MenuContent>
+</Menu>
+```
+
+## 垂直方向
+
+`orientation="vertical"` 改用上下键在触发器间移动，菜单向侧面打开：朝向弹出层的箭头打开，反向箭头关闭并回到触发器。
+
+```tsx
+<Menubar orientation="vertical">
+  {["收件箱", "草稿", "归档"].map((label) => (
+    <Menu key={label}>
+      <MenuTrigger>{label}</MenuTrigger>
+      <MenuContent>
+        <MenuItem value="open">打开{label}</MenuItem>
+        <MenuItem value="read">全部标为已读</MenuItem>
+      </MenuContent>
+    </Menu>
+  ))}
+</Menubar>
+```
+
+## 数据与共享能力
+
+每个 Menu 都可以传 `items`（`MenuData`），并在关闭时注册自己的快捷键。复选项、单选组、图标、快捷键提示与链接渲染都与 Menu 一致；菜单栏里的菜单始终以 popover 呈现，不会变成底部面板。
+
+```tsx
+const file: MenuData = [
+  { value: "new", label: "新建文件", shortcut: "mod+alt+n" },
+  { type: "separator" },
+  { type: "submenu", label: "分享", items: [{ value: "email", label: "邮件链接" }] },
+];
+
+<Menubar>
+  <Menu items={file} onAction={(value) => run(value)}>
+    <MenuTrigger>文件</MenuTrigger>
+    <MenuContent />
+  </Menu>
+</Menubar>
+```
+
+禁用的触发器保持可聚焦（`aria-disabled`）以便被发现，但打不开菜单；`disabled` 设在栏上则禁用全部触发器并保留 Tab stop。
+
+## 控制器
+
+`createMenubarController()` 创建栏的控制器：`focus()` 把焦点移进栏（上次使用的触发器，或第一个），`close()` 关闭当前菜单，`isOpen()` 查询是否有菜单打开。每个 Menu 仍拥有自己的开合状态与控制器。可以把 Alt+M 之类的应用快捷键接到 `focus()`。
+
+```tsx
+const [menubar] = React.useState(() => createMenubarController());
+useShortcut("alt+m", () => menubar.focus());
+
+<Menubar controller={menubar}>{/* 菜单 */}</Menubar>;
+```
+
+## 样式与状态
+
+栏的 `data-slot` 是 `menubar`：任一菜单打开时带 `data-open`（触发器只在自己的菜单打开时带），整栏禁用带 `data-disabled`，`data-orientation` 标记 `horizontal` / `vertical`。弹出层与项沿用 [Menu 的状态属性与 CSS 变量](/docs/components/menu)（`--anchor-width`、`--transform-origin` 等）。
+
+```css
+[data-slot="menubar"] {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-bottom: 1px solid var(--color-border);
+}
+[data-slot="menubar"][data-orientation="vertical"] {
+  flex-direction: column;
+  border-bottom: 0;
+}
+```
+
+## API
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `orientation` | `MenubarOrientation` | 水平（左右键）或垂直（上下键），垂直时菜单向侧面打开。 |
+| `loop` | `boolean` | 方向键是否在触发器与打开的菜单间首尾循环，默认开。 |
+| `disabled` | `boolean` | 禁止所有菜单打开，触发器保持可聚焦。 |
+| `modal` | `"pointer" \| boolean` | 供给未自设 `modal` 的菜单；默认 `"pointer"`，`true` 时页面 inert 但栏本身可用。 |
+| `controller` | `{ focus, isOpen, close }` | 用 `createMenubarController()` 创建。 |
+| `debug` | `boolean` | 开发构建下把每次状态变更及原因打到控制台。 |
+
+菜单、项与图标沿用 Menu 页的 props。被同栏另一个菜单接管时以 `submenu-switch` 原因关闭，悬停打开报 `trigger-hover`，方向键打开报 `trigger-press`。
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA menubar 模式。Tab 首次落在第一个触发器上，之后记住上次使用的那个。菜单打开时指针移到另一个可用触发器即切换（只是路过进菜单则不切）；移到禁用触发器会关闭当前菜单且不打开新的。
+
+| 按键 | 在触发器上 | 在打开的菜单里 |
+| --- | --- | --- |
+| `Left` / `Right` | 上一个 / 下一个触发器 | 上一个 / 下一个菜单，或进出子菜单 |
+| `Down` | 打开并聚焦首项 | 下一项 |
+| `Up` | 打开并聚焦末项 | 上一项 |
+| `Enter` / `Space` | 打开并聚焦首项 | 选中当前项 |
+| `Home` / `End` | 第一个 / 最后一个触发器 | 首项 / 末项 |
+| 字母 | 按名称定位触发器 | 按名称定位项 |
+| `Escape` | 无 | 关闭并回到触发器 |
+| `Tab` / `Shift+Tab` | 离开整条栏 | 关闭菜单并离开 |
+
+以上为 LTR 水平栏的方向；RTL 反转水平键与子菜单方向，垂直栏改用上下键。
+
+## 相关组件
+
+- [菜单](/docs/components/menu)：单个菜单的全部部件、状态与样式。
+- [命令面板](/docs/components/command)：搜索式的全局动作入口。
+- [弹出层](/docs/concepts/popups)：定位与 dismiss 的共享模型。
+- [控制器](/docs/concepts/controllers)：从外部聚焦与关闭菜单栏。

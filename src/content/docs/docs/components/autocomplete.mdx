@@ -1,0 +1,164 @@
+---
+title: "自动完成"
+description: "Autocomplete 在键入时给出文本建议而不限制输入，选中即填入，任何文本都是合法值，适合搜索框与自由字段。"
+sidebar:
+  order: 20
+---
+
+`Autocomplete`（自动完成）是一个带辅助建议的文本框：键入时过滤候选，选中一条会填入输入框，但任何文本都是合法值。适合搜索框、地址或自由填写的字段。当值应当是列表里的某个选项（而非文本）时，改用[组合框](/docs/components/combobox)。
+
+## 组合
+
+```text
+Autocomplete
+├── AutocompleteLabel
+├── AutocompleteInput
+└── AutocompleteContent
+    ├── AutocompleteEmpty
+    └── AutocompleteList
+        ├── AutocompleteItem
+        └── AutocompleteItem
+```
+
+先给输入框命名，再把建议放进弹出层里的列表。每条建议需要一个唯一的 `value`。`AutocompleteLabel` 渲染关联输入框的 `label`，无需额外套[字段](/docs/components/field)。
+
+## 用法
+
+```tsx
+import {
+  Autocomplete,
+  AutocompleteContent,
+  AutocompleteInput,
+  AutocompleteItem,
+  AutocompleteLabel,
+  AutocompleteList,
+} from "@ui-sdk/react/autocomplete";
+
+function Example() {
+  return (
+    <Autocomplete>
+      <AutocompleteLabel>水果</AutocompleteLabel>
+      <AutocompleteInput placeholder="输入一种水果…" />
+      <AutocompleteContent>
+        <AutocompleteList>
+          <AutocompleteItem value="Apple">苹果</AutocompleteItem>
+          <AutocompleteItem value="Banana">香蕉</AutocompleteItem>
+        </AutocompleteList>
+      </AutocompleteContent>
+    </Autocomplete>
+  );
+}
+```
+
+键入后按 `ArrowDown` 再按 `Enter` 填入高亮项，也可以保留不在列表里的文本。
+
+## 过滤与关键词
+
+默认过滤匹配建议中任意位置的文本。用 `filter="startsWith"` 或 `"fuzzy"` 换匹配方式，用函数自定义，或 `false` 保留全部（用于服务端已过滤的结果）。`keywords` 增加可搜索的词而不改变填入框里的文本：
+
+```tsx
+<Autocomplete filter="startsWith">
+  <AutocompleteLabel>标签</AutocompleteLabel>
+  <AutocompleteInput placeholder="试试 bug" />
+  <AutocompleteContent>
+    <AutocompleteList>
+      <AutocompleteItem value="fix" label="fix" keywords={["bug", "patch"]}>
+        fix
+      </AutocompleteItem>
+    </AutocompleteList>
+  </AutocompleteContent>
+</Autocomplete>
+```
+
+键入「bug」可通过关键词找到 fix。
+
+## 内联补全与自动高亮
+
+`inlineComplete` 用第一条以键入文本开头的建议补全其余部分，补出的文本处于选中态：`End` 或 `ArrowRight` 接受，`Backspace` 或 `Escape` 撤销，方向键填入它们高亮的建议。`autoHighlight` 在键入时高亮第一条，使 `Enter` 直接选中它；`openOnFocus` 让字段获得焦点时就展开（如最近搜索）：
+
+```tsx
+<Autocomplete inlineComplete autoHighlight>
+  <AutocompleteLabel>水果</AutocompleteLabel>
+  <AutocompleteInput placeholder="输入 bl" />
+  <AutocompleteContent>
+    <AutocompleteList>{/* 建议项 */}</AutocompleteList>
+  </AutocompleteContent>
+</Autocomplete>
+```
+
+## 高亮匹配文本
+
+`AutocompleteItemText` 标出匹配的文字，按当前语言忽略大小写与重音。它的状态暴露匹配分段 `segments`，可自行渲染，例如把匹配段加粗：
+
+```tsx
+<AutocompleteItem value="Blueberry">
+  <AutocompleteItemText>
+    {(state) =>
+      state.segments.map((segment, index) =>
+        segment.match ? <strong key={index}>{segment.text}</strong> : segment.text,
+      )
+    }
+  </AutocompleteItemText>
+</AutocompleteItem>
+```
+
+## 选项即数据与异步建议
+
+把整套候选作为 `items` 传入，组件替你渲染并过滤，无需写出每一项；`emptyItems` 在字段为空时改显示另一组（如最近搜索，配合 `openOnFocus`）。分组用 `{ type: "group", label, items }`，分隔用 `{ type: "separator" }`，也可用 `AutocompleteGroup`、`AutocompleteGroupLabel`、`AutocompleteSeparator` 手写 markup。
+
+服务端搜索时设 `filter={false}` 保留返回结果，用 `status`（`"idle" | "loading" | "error"`）驱动 `AutocompleteEmpty` 与 `AutocompleteStatus`，加载中给列表设 `aria-busy`；`onLoadMore` 在高亮或滚动到最后一项时触发以加载下一页，`announcement` 自定义键入停顿后屏幕阅读器听到的内容。搜索框场景用 `submitOnSelect` 让选中即提交，`onSubmit(value, { event })` 在无高亮项按 `Enter` 或选中后运行，随后外层表单提交（除非 `preventDefault()`）。
+
+## 样式与状态
+
+弹出层就地渲染进浏览器顶层。各部件带 `data-slot`（如 `autocomplete-content`、`autocomplete-item`），状态用 data 属性表达：输入框与内容带 `data-open` / `data-closed`；高亮项带 `data-highlighted`，不可选带 `data-disabled`；内容上的 `data-modality="keyboard"` 区分键盘与指针，`data-starting-style` / `data-ending-style` 供入场退场动画；`AutocompleteItemText` 匹配时带 `data-matched`，`AutocompleteEmpty` 带 `data-empty` / `data-loading`。
+
+`AutocompleteContent` 暴露定位与动画变量：`--anchor-width`（输入框宽度）、`--available-height`（到视口边缘的可用空间）、`--transform-origin`（展开原点）：
+
+```css
+[data-slot="autocomplete-content"] {
+  width: var(--anchor-width);
+  max-height: var(--available-height);
+  transform-origin: var(--transform-origin);
+}
+[data-slot="autocomplete-content"][data-modality="keyboard"]
+  [data-slot="autocomplete-item"][data-highlighted] {
+  outline: 2px solid var(--color-brand);
+}
+[data-slot="autocomplete-item-text"][data-matched] {
+  font-weight: 600;
+}
+```
+
+详见[弹出层](/docs/concepts/popups)与[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+根 `Autocomplete` 的常用属性：
+
+- `value` / `defaultValue`（`string`）：受控文本 / 初始文本，重置回到默认值。
+- `onValueChange`（`(value, details) => void`）：文本想变更时调用，`details.cancel()` 保留原值。
+- `open` / `defaultOpen` / `onOpenChange`：单独控制建议的开合。
+- `items` / `emptyItems`（`ListData<string>`）：作为数据的建议 / 空字段时的建议。
+- `filter`（`"contains" | "startsWith" | "fuzzy" | 函数 | false`）：过滤方式。
+- `inlineComplete` / `autoHighlight` / `openOnFocus` / `submitOnSelect`（`boolean`）：内联补全、自动高亮、聚焦展开、选中即提交。
+- `status`（`AsyncOptionsStatus`）、`onSubmit`、`onLoadMore`、`announcement`：异步与搜索。
+- `name` / `required` / `disabled` / `readOnly`：表单提交与可用性。
+- `controller`（`object`）：用 `createAutocompleteController()` 创建，提供 `open / close / toggle / setValue / getValue / clear / focus / isOpen`。
+
+`AutocompleteItem` 接受 `value`、`label`、`keywords`、`disabled`；`AutocompleteClear` 与 `AutocompleteContent` 接受 `keepMounted`。参见[控制器](/docs/concepts/controllers)。
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA 带列表自动完成的 combobox 模式（`inlineComplete` 时为列表加内联）。输入框渲染 `combobox` 角色，键入过滤建议，焦点通常留在输入框，由 `aria-activedescendant` 指明高亮项。
+
+- `ArrowUp` / `ArrowDown` 移动高亮，`Enter` 填入高亮文本并关闭（不提交），`Escape` 关闭并保留文本。
+- 无高亮项时按 `Enter` 以键入的文本提交；`loop` 控制方向键是否首尾循环。
+- 内联补全下 `ArrowRight` / `End` 接受，`Backspace` / `Escape` 撤销。
+- 点击建议填入并把焦点留在输入框；禁用项不可选，方向键跳过它。
+
+## 相关组件
+
+- [组合框](/docs/components/combobox)：值是列表里的选项而非自由文本。
+- [选择器](/docs/components/select)：从固定选项里选值，触发器更紧凑。
+- [输入框](/docs/components/input)：不带建议的纯文本框。
+- [弹出层](/docs/concepts/popups)：建议列表的定位、顶层渲染与动画。

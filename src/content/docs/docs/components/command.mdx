@@ -1,0 +1,169 @@
+---
+title: "命令面板"
+description: "Command 把搜索框放在一组动作之上：模糊过滤、快捷键、分页导航与异步结果，可独立使用或嵌入对话框。"
+sidebar:
+  order: 51
+---
+
+`Command`（命令面板）把搜索框放在一组动作之上，输入时列表保持展开并实时过滤。可以独立使用，也可以放进[对话框](/docs/components/dialog)做成 Cmd+K 式的全局命令面板。它执行的是动作而非选值；要选一个值并提交表单，用[组合框](/docs/components/combobox)。
+
+## 组合
+
+```text
+Command
+├── CommandInput
+├── CommandEmpty
+└── CommandList
+    ├── CommandItem
+    └── CommandItem
+```
+
+给输入框一个无障碍名称，给每条命令唯一的 `value`；空态与状态消息放在列表外。`onAction` 上报运行的命令的 `value`。相关命令用 `CommandGroup` 与 `CommandGroupLabel` 分组，组间放 `CommandSeparator`；过滤后为空的组与分隔线自动隐藏。
+
+## 用法
+
+```tsx
+import {
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@ui-sdk/react/command";
+
+function Example() {
+  return (
+    <Command onAction={(value) => run(value)}>
+      <CommandInput aria-label="搜索命令" placeholder="输入命令…" />
+      <CommandEmpty>没有匹配的命令。</CommandEmpty>
+      <CommandList>
+        <CommandItem value="new-file">新建文件</CommandItem>
+        <CommandItem value="new-folder">新建文件夹</CommandItem>
+      </CommandList>
+    </Command>
+  );
+}
+```
+
+## 做成命令面板
+
+把 Command 放进 Dialog：给对话框一个标题，触发器设 `shortcut="mod+k"`，命令运行后关闭对话框。dismiss 与焦点归还由对话框负责。
+
+```tsx
+const [open, setOpen] = React.useState(false);
+
+<Dialog open={open} onOpenChange={setOpen}>
+  <DialogTrigger shortcut="mod+k">
+    搜索…
+    <DialogShortcut />
+  </DialogTrigger>
+  <DialogContent>
+    <DialogTitle>命令面板</DialogTitle>
+    <Command onAction={(value) => { run(value); setOpen(false); }}>
+      <CommandInput aria-label="搜索命令" />
+      <CommandEmpty>没有匹配的命令。</CommandEmpty>
+      <CommandList>{/* 命令与分组 */}</CommandList>
+    </Command>
+  </DialogContent>
+</Dialog>;
+```
+
+命令自身的 `shortcut`（如 `"mod+p"`）在列表挂载期间随时可运行，即使被搜索过滤隐藏；`CommandShortcut` 显示当前平台的按键。
+
+## 过滤与关键词
+
+`filter` 默认 `"fuzzy"`（`nf` 能匹配「New file」），还可用 `"contains"`、`"startsWith"`、返回分数或布尔的自定义函数（0 隐藏，分数越高越靠前），或 `false` 保留服务端已过滤的结果。`keywords` 添加同义词而不改变标签；`CommandItemText` 会标记命中的文字片段。
+
+```tsx
+<CommandItem value="delete" keywords={["remove", "trash"]}>
+  <CommandItemText>删除</CommandItemText>
+</CommandItem>
+```
+
+把命令作为 `items` 数据传入时按分数排序，并支持 `{ type: "group" }`、`{ type: "separator" }` 与自带 `items` 的子页面；`emptyItems` 在首页搜索为空时显示最近或建议命令。超长列表可只渲染可见行，给每行传 `index`，过滤与键盘导航仍覆盖全部数据。
+
+## 分页
+
+给命令设 `page` 指向某个 `CommandPage` 的 `value`，选中即进入该页；不带 `value` 的 `CommandPage` 是首页。`pages` 数组记录页面栈，可受控。空搜索框里按 Backspace 返回上一页并恢复其搜索词；Escape 先清空搜索再返回。控制器的 `push()` / `pop()` 可编程导航。
+
+```tsx
+<CommandList>
+  <CommandPage>
+    <CommandItem value="theme" page="theme">更改主题…</CommandItem>
+  </CommandPage>
+  <CommandPage value="theme">
+    <CommandItem value="light">浅色</CommandItem>
+    <CommandItem value="dark">深色</CommandItem>
+  </CommandPage>
+</CommandList>
+```
+
+## 异步与待决动作
+
+服务端搜索用 `useAsyncOptions`（`@ui-sdk/react/async-options`）：`onQueryChange` 里调 `setQuery()`，渲染返回的 items，传 `status` 并设 `filter={false}`。`CommandStatus` 描述加载与失败，加载中列表带 `aria-busy`；`onLoadMore` 在滚动或高亮到达末尾时请求下一页。
+
+`onAction` 或命令的 `onSelect` 返回 Promise 时，命令进入待决态：带 `data-pending`、`aria-busy`、`aria-disabled`，重复按下不会再次运行；reject 会写入命令的 `error` 状态，下次运行时清除。`onSelect` 先于 `onAction`，对其事件 `preventDefault()` 可跳过动作。
+
+## 样式与状态
+
+各部件的 `data-slot` 为 `command`、`command-input`、`command-list`、`command-item`、`command-empty`、`command-status` 等：
+
+- 命令：`data-highlighted`（当前高亮，Enter 运行它）、`data-disabled`、`data-pending`、`data-has-icon`。
+- 列表：内部有图标部件时带 `data-has-icons`，便于给无图标的命令留出对齐空间。
+- 根与空态、状态：`status="loading"` 时带 `data-loading`；空态无匹配时带 `data-empty`。
+- 文本：`CommandItemText` 命中搜索时带 `data-matched`。
+
+Command 不是弹出层，没有锚点变量；给列表限高并滚动即可，键盘导航会把高亮命令滚入视野：
+
+```css
+[data-slot="command-list"] {
+  max-height: 320px;
+  overflow-y: auto;
+}
+[data-slot="command-item"][data-highlighted] {
+  background: var(--color-accent);
+}
+[data-slot="command-item"][data-disabled] {
+  opacity: 0.5;
+}
+```
+
+## API
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `value` / `defaultValue` | `string \| null` | 高亮命令的值，`null` 表示不高亮。 |
+| `onValueChange` | `(value, details) => void` | 高亮变化；`details.index` 供虚拟列表滚动。 |
+| `query` / `onQueryChange` | `string` / `(query, details) => void` | 搜索文本及其变更。 |
+| `pages` / `onPagesChange` | `string[]` / `(pages, details) => void` | 页面栈及其变更。 |
+| `onAction` | `(value, details) => unknown` | 命令运行时回调；返回 Promise 进入待决态。 |
+| `items` / `emptyItems` | `CommandData` | 数据驱动的命令；搜索为空时显示 `emptyItems`。 |
+| `filter` | `SearchFilter<string>` | `"fuzzy"`、`"contains"`、`"startsWith"`、函数或 `false`。 |
+| `autoHighlight` | `boolean` | 是否自动高亮首条 / 最佳匹配，默认开。 |
+| `loop` | `boolean` | 方向键是否首尾循环。 |
+| `status` / `onLoadMore` | `AsyncOptionsStatus` / `() => void` | 异步加载状态与加载下一页。 |
+| `controller` | `object` | 用 `createCommandController()` 创建，`run()`、`push()`、`pop()`、`focus()` 等。 |
+
+`CommandItem` 另有 `label`（搜索匹配的文本）、`keywords`、`disabled`、`shortcut`、`page`、`index`、`onSelect`。
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA combobox 模式：输入框是 combobox，列表是始终展开的 listbox，焦点留在输入框，用 `aria-activedescendant` 指向高亮命令。
+
+| 按键 | 行为 |
+| --- | --- |
+| 输入 | 过滤命令并高亮最佳匹配 |
+| `ArrowDown` / `ArrowUp` | 移动高亮，默认首尾循环（`loop={false}` 关闭） |
+| `Enter` | 运行高亮命令 |
+| `Escape` | 先清空搜索，再返回上一页 |
+| `Backspace` | 搜索为空时返回上一页并恢复其搜索词 |
+| 命令的快捷键 | 列表挂载期间随时运行，即使被过滤隐藏 |
+
+`Home` / `End` 留给输入框移动光标。默认高亮第一条可用命令，`autoHighlight={false}` 则等到方向键或指针移动。
+
+## 相关组件
+
+- [对话框](/docs/components/dialog)：承载命令面板的模态容器与快捷键。
+- [组合框](/docs/components/combobox)：搜索并选值，而不是执行动作。
+- [触发菜单](/docs/components/trigger-menu)：在编辑器里键入触发符唤起的命令列表。
+- [控制器](/docs/concepts/controllers)：从外部驱动搜索、分页与运行命令。

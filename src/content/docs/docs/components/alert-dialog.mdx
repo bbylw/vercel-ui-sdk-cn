@@ -1,0 +1,167 @@
+---
+title: "警告对话框"
+description: "AlertDialog 在动作继续前要求明确回答：始终模态、点外部不关闭，支持异步确认与随处发起的 confirm()。"
+sidebar:
+  order: 50
+---
+
+`AlertDialog`（警告对话框）让人在动作继续前先回答一个问题，例如删除项目。它始终模态、点击外部不会关闭，打开时焦点落在破坏性最小的答案上。普通的 focused 任务（分享链接、编辑记录）用[对话框](/docs/components/dialog)；需要明确「是 / 否」回答时才用它。
+
+## 演示
+
+点「删除项目」，焦点先落在「取消」；点外部保持打开，Esc 关闭并回到触发器：
+
+<DocDemo name="alert-dialog" />
+
+## 组合
+
+```text
+AlertDialog
+├── AlertDialogTrigger
+├── AlertDialogBackdrop
+└── AlertDialogContent
+    ├── AlertDialogTitle
+    ├── AlertDialogDescription
+    ├── AlertDialogClose
+    └── AlertDialogClose
+```
+
+问题放在 `AlertDialogTitle`，后果写在 `AlertDialogDescription`，每个答案用一个 `AlertDialogClose`。Close 部件关闭时上报自己的 `value`，`value="confirm"` 是表示同意的答案。`AlertDialogBackdrop` 可选，用来压暗页面。
+
+## 用法
+
+```tsx
+import {
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@ui-sdk/react/alert-dialog";
+
+function Example() {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger>删除项目</AlertDialogTrigger>
+      <AlertDialogBackdrop />
+      <AlertDialogContent>
+        <AlertDialogTitle>删除这个项目？</AlertDialogTitle>
+        <AlertDialogDescription>
+          项目及其文件将对团队所有成员永久删除。
+        </AlertDialogDescription>
+        <AlertDialogClose>取消</AlertDialogClose>
+        <AlertDialogClose value="confirm">删除</AlertDialogClose>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+```
+
+`AlertDialogContent` 是进入浏览器顶层的 `div`（popover），不是原生 `<dialog>`；不放 Backdrop 部件时可以直接给它的 `::backdrop` 写样式。
+
+## 异步操作
+
+给 Close 部件传 `action`，返回 Promise 时对话框保持打开直到完成：resolve 后以 `action` 原因关闭，reject 则保持打开并把错误放进该部件的 `error` 状态。运行期间部件带 `data-pending`、`aria-busy`、`aria-disabled`，其他关闭途径全部被挡住（控制器除外）。
+
+```tsx
+<AlertDialog pendingAnnouncement="正在删除项目">
+  <AlertDialogTrigger>删除项目</AlertDialogTrigger>
+  <AlertDialogContent>
+    <AlertDialogTitle>删除项目？</AlertDialogTitle>
+    <AlertDialogClose
+      value="confirm"
+      action={deleteProject}
+      render={(props, state) => (
+        <button {...props}>
+          {state.pending ? "删除中…" : state.error ? "重试" : "删除"}
+        </button>
+      )}
+    />
+  </AlertDialogContent>
+</AlertDialog>
+```
+
+`pendingAnnouncement` 是动作运行超过一秒后屏幕阅读器听到的话，请按页面语言设置。
+
+## 随处确认
+
+不想写对话框标记时，用共享的 `confirm()`：在应用根部渲染一次 `OverlayHost`，每次调用都会以警告对话框呈现，同意时 resolve `true`。
+
+```tsx
+import { confirm } from "@ui-sdk/react/alert-dialog";
+import { OverlayHost } from "@ui-sdk/react/overlays";
+
+async function archive() {
+  const yes = await confirm({
+    title: "归档这个项目？",
+    description: "项目会移入「已归档」，随时可以恢复。",
+    confirmLabel: "归档",
+  });
+  if (yes) archiveProject();
+}
+
+// 应用根部渲染一次
+<OverlayHost />;
+```
+
+要复用自定义外观，用 `createConfirm<Payload>()` 创建确认函数，把它的 `controller` 传给一个 `AlertDialog`，内容从 `state.payload` 读取每次提问的数据。同一个确认函数的多次调用会排队，前一个有答案后一个才出现。
+
+## 受控与嵌套
+
+传 `open` 与 `onOpenChange` 接管开合；`details.returnValue` 是关闭它的 Close 部件的 `value`，`details.cancel()` 可拦截变更。对话框可以嵌套：Esc 只关最上层，下层内容带 `data-nested-open`，可据此压暗或缩放。内层以 `"confirm"` 关闭时在外层 `onOpenChange` 里一并关掉外层，即可「答完最后一问就全部关闭」。
+
+## 样式与状态
+
+各部件的 `data-slot` 为 `alert-dialog-trigger`、`alert-dialog-backdrop`、`alert-dialog-content`、`alert-dialog-close` 等：
+
+- 触发器与内容：`data-open` / `data-closed`，触发器禁用时带 `data-disabled`。
+- 内容与背板：`data-starting-style`（入场首帧）/ `data-ending-style`（退场中），内容在软键盘遮挡页面时带 `data-keyboard`。
+- Close 部件：动作运行中带 `data-pending`。
+
+内容上的 CSS 变量：`--dialog-stack`（嵌套在其上方打开的对话框数）、`--keyboard-inset`（软键盘遮挡的像素）、`--visual-viewport-width` / `--visual-viewport-height` / `--visual-viewport-top`（可视视口尺寸与偏移）。
+
+```css
+[data-slot="alert-dialog-content"] {
+  transition: opacity 0.2s, scale 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+[data-slot="alert-dialog-content"]:is([data-starting-style], [data-ending-style]) {
+  opacity: 0;
+  scale: 0.96;
+}
+```
+
+退场动画播完内容才卸载。详见[弹出层](/docs/concepts/popups)与[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+根部件 `AlertDialog` 共享 Dialog 的选项，但没有 `modal`、`closeOnOutsidePress`、`presentation`：它始终模态、点外部永不关闭、不会以底部面板呈现。
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `open` / `defaultOpen` | `boolean` | 受控 / 非受控的开合状态。 |
+| `onOpenChange` | `(open, details) => void` | 开合变更；`details.reason`、`details.returnValue`、`details.cancel()`。 |
+| `onOpenChangeComplete` | `(open: boolean) => void` | 动画结束后报告开合完成。 |
+| `dismissible` | `boolean` | Esc 与返回手势能否关闭；Close 部件与控制器始终能。 |
+| `onDismissAttempt` | `(details) => void` | 关闭被拒绝时回调（不可 dismiss 或动作运行中）。 |
+| `persistentElements` | `(string \| Element)[] \| (() => Element[])` | 模态期间保持可用的页面元素。 |
+| `pendingAnnouncement` | `string` | 动作运行一秒后向屏幕阅读器播报的文本。 |
+| `controller` | `PopupController` | 用 `createAlertDialogController()` 或 `createConfirm()` 创建。 |
+
+`AlertDialogClose` 另有 `value?: string` 与 `action?`；`AlertDialogContent` 支持 `initialFocus`、`finalFocus`、`keepMounted`、`container`。
+
+## 键盘与无障碍
+
+- 触发器：`Enter` / `Space` 打开；`shortcut` 可从页面任何位置按下（如 `mod+shift+h`）。
+- 打开后焦点落在第一个 Close 部件上，所以把「取消」放在最前；触摸打开则聚焦内容本身，避免弹出软键盘。
+- `Tab` / `Shift+Tab` 在各答案间循环；`Escape` 关闭并把焦点还给触发器；点击外部永不关闭。
+
+内容使用 `alertdialog` 角色，页面其余部分 inert，屏幕阅读器播报标题与描述，遵循 WAI-ARIA alert dialog 模式。
+
+## 相关组件
+
+- [对话框](/docs/components/dialog)：不要求明确回答的聚焦任务。
+- [轻提示](/docs/components/toast)：与 `confirm()` 共用 `OverlayHost` 的全局提示。
+- [弹出层](/docs/concepts/popups)：顶层渲染、模态与 dismiss 的共享模型。
+- [控制器](/docs/concepts/controllers)：从组件树外开关与读取返回值。

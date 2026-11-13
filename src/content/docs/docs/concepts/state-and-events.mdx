@@ -1,0 +1,76 @@
+---
+title: "状态与事件"
+description: "受控与不受控两种用法；onValueChange 的 details 告诉你变更原因与来源，并能取消变更。"
+sidebar:
+  order: 2
+---
+
+每个有值的组件都支持两种用法：**不受控**（`defaultValue`，组件自己管状态）和**受控**（`value` 加 `onValueChange`，你管状态）。两者可以混用在不同组件上，互不影响。
+
+## 不受控
+
+```tsx
+<Switch defaultChecked onCheckedChange={(checked) => save(checked)} />
+```
+
+组件内部持有状态，回调只是通知你。适合大多数表单与设置面板。
+
+## 受控
+
+```tsx
+const [channel, setChannel] = useState("push");
+
+<Select value={channel} onValueChange={(value) => setChannel(value)} items={channels}>
+  …
+</Select>
+```
+
+状态在你手里，组件只负责把「想变成什么」告诉你。适合需要联动、持久化或服务端同步的场景。
+
+## details：原因、来源与取消
+
+变更回调的第二个参数 `details` 携带三样东西：
+
+- `reason`：为什么变——指针、键盘、智能体、清除等。
+- `source`：谁发起的——`"pointer"`、`"keyboard"`、`"agent"` 等。
+- `cancel()`：拒绝这次变更。
+
+```tsx
+<Slider
+  value={volume}
+  onValueChange={(value, details) => {
+    if (value > 90 && details.source !== "agent") {
+      details.cancel();
+      toast.warning("音量过高", { description: "已限制在 90 以内。" });
+      return;
+    }
+    setVolume(value);
+  }}
+/>
+```
+
+<Aside type="caution" title="把校验放在变更回调里">
+智能体的 `setValue` 等动作直接调用组件 API，不会经过你的键盘或指针处理器。校验与限制必须写在 `onValueChange` / `onCheckedChange` 这类变更回调中，否则智能体可以绕过它。参见[智能体权限](/docs/agents/permissions)。
+</Aside>
+
+## 多值组件的值是数组
+
+ToggleGroup、Accordion（multiple）、Listbox（multiple）等多值组件，值永远是数组，单选模式下也是：
+
+```tsx
+<ToggleGroup
+  defaultValue={["light"]}
+  deselectable={false}
+  onValueChange={(values) => setTone(values[0])}
+>
+  …
+</ToggleGroup>
+```
+
+`deselectable={false}` 保证始终有一个按下项。受控时传 `value={[tone]}`。
+
+## 看状态流动
+
+下面的面板同时展示控件与智能体快照：操作任一控件，右侧快照实时反映同一份状态。
+
+<Playground />

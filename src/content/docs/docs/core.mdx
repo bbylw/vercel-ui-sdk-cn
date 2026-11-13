@@ -1,0 +1,129 @@
+---
+title: "行为与自定义组件"
+description: "用 @ui-sdk/core 的行为与原语构建 ui-sdk 没有的组件：definePrimitive 定义状态与部件，createParts 适配五个框架，同一套键盘、焦点与 ARIA。"
+sidebar:
+  order: 90
+---
+
+ui-sdk 的组件都建在一套**行为**之上：焦点、键盘导航、选择、弹出层、拖放，以及它们所需的 ARIA。当某个组件 ui-sdk 没有提供（步进器、分隔条、穿梭框、emoji 选择器），你用 `@ui-sdk/core` 的同一套行为自己组合，得到的组件自动拥有相同的键盘、焦点、服务端渲染与从右到左支持。
+
+这一页讲清楚原语（primitive）是什么、怎么定义、怎么渲染进你的框架。完整参考随包附在 `node_modules/@ui-sdk/<框架>/docs/core.md`（按标题检索，它很大）。
+
+## 它是什么
+
+一个**原语**描述组件的行为：它的状态、改变状态的函数、使用状态的部件。它本身不渲染任何东西。行为留在框架无关的 core 里，**适配器**把它接到 React、Vue、Svelte、Solid 或 Web Components。换框架只换渲染方式，行为不变。
+
+## 定义一个原语
+
+以静音按钮为例：一个状态 `muted`，一个部件 `root`。
+
+```ts title="lib/mute-button.ts"
+import { definePrimitive } from "@ui-sdk/core";
+
+const muteButton = definePrimitive({
+  name: "mute-button",
+  state: () => ({ muted: false }),
+  api: (context) => ({
+    toggle: () => context.store.set({ muted: !context.store.get().muted }),
+  }),
+  slots: (slot) => ({
+    root: slot({
+      attrs: (state) => ({
+        type: "button",
+        "aria-pressed": String(state.muted),
+      }),
+      press: ({ api }) => api.toggle(),
+    }),
+  }),
+});
+
+export { muteButton };
+```
+
+- `state` 把 `muted` 初始化为 `false`。
+- `api` 定义 `toggle`，在 `true` 与 `false` 间切换。
+- `slots` 描述部件。唯一的 slot `root` 渲染时变成按钮。
+- `attrs` 把状态变成 HTML 属性：`muted` 为 `true` 时根得到 `aria-pressed="true"`。
+- `press` 在根被激活时调用 `toggle`。
+
+这就是全部行为。`name` 会给每个部件的 `data-slot` 加前缀（如 tabs 的 list slot 得到 `tabs-list`），`root` slot 只用 name 本身（`data-slot="mute-button"`）。状态属性可用 core 的助手：`openAttrs(open)` 返回 `data-open`/`data-closed`，`checkedAttrs(checked)` 返回 `data-checked`/`data-unchecked`/`data-indeterminate`。
+
+## 选项
+
+给原语传入选项时，用类型描述它，在 `options` 里列出每项的「种类」，并用该类型标注 `state` 的参数：
+
+```ts
+type CopyButtonOptions = { text?: string; onCopy?: (text: string) => void };
+
+options: { text: "string", onCopy: "callback" },
+state: (options: CopyButtonOptions) => ({ copied: false }),
+```
+
+种类告诉适配器如何处理每个值：web components 从属性读 `text`、把 `onCopy` 变成事件；Vue 把 callback 当作 emit。常用种类有 `"string"`/`"number"`/`"boolean"`/`"list"`/`"value"`/`"callback"`/`"action"`/`"id"`/`"key"`。在 `api` 里用 `context.options()` 读当前值；`api` 每实例只运行一次，所以在方法内部读选项可避免持有旧值。选项变化需要额外处理时用 `context.onOptions`。
+
+## 渲染进你的框架
+
+适配器把原语接到框架。先装对应包（`@ui-sdk/react`、`@ui-sdk/vue`、`@ui-sdk/svelte`、`@ui-sdk/solid`、`@ui-sdk/web`），再用 `createParts` 从原语创建部件。React：
+
+```tsx title="components/ui/mute-button.tsx"
+"use client";
+
+import { createParts } from "@ui-sdk/react/primitive";
+import { muteButton } from "@/lib/mute-button";
+
+const { Root: MuteButton } = createParts(muteButton, { root: "button" });
+export { MuteButton };
+```
+
+`{ root: "button" }` 表示根部件渲染 `<button>`。然后在页面里用：
+
+```tsx
+import { MuteButton } from "@/components/ui/mute-button";
+
+<MuteButton>静音</MuteButton>;
+```
+
+Vue、Svelte、Solid 用各自的 `createParts`（`@ui-sdk/vue/primitive` 等），写法相同。Web Components 注册自定义元素：
+
+```ts
+import { createParts, wrappedButton } from "@ui-sdk/web";
+import { muteButton } from "@/lib/mute-button";
+
+createParts(muteButton, { root: { tag: "mute-button", target: wrappedButton } });
+```
+
+```html
+<mute-button><button>静音</button></mute-button>
+```
+
+因为用了原生 `<button>`，点击、Enter、Space 都到达原语的 `press`，屏幕阅读器从 `aria-pressed` 读到按下态。详见[框架适配](/docs/frameworks)。
+
+## 组合行为
+
+更复杂的组件由多个共享状态的行为组成。以一个评分组件为例：先用共享状态建立一组星，每颗星是一个带 `value` 的部件，组负责单一 tab 焦点（roving tabindex）与方向键移动。core 提供这些行为积木，你把它们拼成原语，而不是从零写键盘逻辑。完整 walkthrough 见 core 文档的「Compose Behaviors」。
+
+## 让你的组件可被智能体使用
+
+`agent` 键告诉[智能体桥](/docs/agents)哪些 api 方法可被调用：
+
+```ts
+agent: { actions: ["setValue", "clear"], closed: true },
+```
+
+放在 `slots` 之后，让 TypeScript 先读到 api。没有它时，桥自动选取名字像变更的方法（如 `setValue`、`toggle`），事件处理器（如 `keydown`）保持内部。快照读取原语声明的 `controlled` 状态键；未声明时读取存在的 `open`、`value`、`checked`。详见[连接智能体](/docs/agents/connect)。
+
+## 样式与测试
+
+你的组件和 ui-sdk 自带组件一样无样式：用 `data-slot` 与状态属性写 CSS，把值作为 CSS 变量传入。参见[样式与动画](/docs/concepts/styling-and-animation)。
+
+core 附带测试工具，帮你在成品组件里检查键盘行为、焦点与 ARIA。每个自定义组件都应至少有一个智能体测试（用 `createAgent` 读快照、调用动作）。参见[智能体概述](/docs/agents)。
+
+<Aside type="tip" title="先找现成的">
+动手写 role 属性前，先在[组件总览](/docs/components)里找有没有现成组件。一个装了 ui-sdk 的项目里出现带 role="listbox"、"menu"、"dialog"、"tablist"、"switch"、"slider" 的 div，几乎总是应该用对应组件而非手写。只有确实缺失时才用 core 构建。
+</Aside>
+
+## 相关页面
+
+- [框架适配](/docs/frameworks)：五个框架的安装与习惯用法。
+- [部件与组合](/docs/concepts/parts-and-composition)：根与部件的通用形状。
+- [组件总览](/docs/components)：先确认是否已有现成组件。

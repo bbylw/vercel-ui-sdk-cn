@@ -1,0 +1,162 @@
+---
+title: "多行文本"
+description: "Textarea 是原生多行文本框：随内容自动增高、受控字数统计、可配置的提交快捷键。"
+sidebar:
+  order: 40
+---
+
+`Textarea`（多行文本）用于留言、备注、简介这类多行输入。它渲染原生 `<textarea>`，可以随文本增高，能放进[字段](/docs/components/field)与表单，变更原因与[输入框](/docs/components/input)完全一致。需要把文本和标签、提及等令牌混排时用[令牌输入](/docs/components/token-input)。
+
+## 组合
+
+```text
+Textarea
+```
+
+只有一个部件，直接渲染原生 `<textarea>`。`rows`、`placeholder`、`maxLength` 等原生属性原样传给它即可。
+
+## 用法
+
+```tsx
+import { Field, FieldLabel } from "@ui-sdk/react/field";
+import { Textarea } from "@ui-sdk/react/textarea";
+
+<Field name="message">
+  <FieldLabel>留言</FieldLabel>
+  <Textarea placeholder="在这里写下你的留言…" rows={4} />
+</Field>;
+```
+
+字段的标签为它命名，`FieldDescription` 作为说明被一起朗读；`Textarea` 自己没有 `name` 时，会用所在字段的 `name` 提交。不用字段时传 `aria-label`。
+
+## 自动增高
+
+`autoResize` 让文本框随内容增高与回缩，用 CSS 的 `min-height` 与 `max-height` 限定范围，超过最大高度后文本在内部滚动。
+
+```tsx
+<Field name="notes">
+  <FieldLabel>配送备注</FieldLabel>
+  <Textarea autoResize placeholder="给骑手的备注…" />
+  <FieldDescription>骑手会看到这些备注。</FieldDescription>
+</Field>
+```
+
+```css
+[data-slot="textarea"] {
+  min-height: 4.5rem;
+  max-height: 16rem;
+}
+```
+
+支持 `field-sizing: content` 的浏览器由原生完成尺寸计算；其他浏览器里，组件在值变化、表单重置或宽度变化时重新测量。代码写入的值、清空后的回缩同样生效。
+
+## 受控与字数统计
+
+把 `value` 放进 state，用 `onValueChange` 更新，字数限制交给原生 `maxLength`：
+
+```tsx
+const [bio, setBio] = React.useState("产品设计师，写字体与界面。");
+
+<Field name="bio">
+  <FieldLabel>简介</FieldLabel>
+  <Textarea value={bio} onValueChange={setBio} maxLength={160} />
+  <FieldDescription>{bio.length} / 160 字</FieldDescription>
+</Field>;
+```
+
+`onValueChange(value, details)` 的 `details.reason` 与输入框相同：`input-change`、`clear-press`、`reset`、`imperative`，`details.cancel()` 保留原值。参见[状态与事件](/docs/concepts/state-and-events)。
+
+## 提交快捷键
+
+`submitShortcut` 决定哪组按键提交所在表单：
+
+- `"mod+enter"`：`Enter` 仍然换行，Command 或 Control + `Enter` 提交。
+- `"enter"`：`Enter` 提交，`Shift` + `Enter` 换行。
+- 不设置：`Enter` 始终换行。输入法正在组字时一律不提交。
+
+```tsx
+<form action="/messages" method="post">
+  <Textarea name="message" aria-label="留言" required submitShortcut="mod+enter" />
+  <button type="submit">发送</button>
+</form>
+```
+
+快捷键与点击提交按钮等价，`required` 与表单的 `onSubmit` 照常生效。想自己处理这次提交，就给 `Textarea` 传 `onSubmit`，它收到当前值，表单不会提交。
+
+## 表单、校验与控制器
+
+原生 `<textarea>` 参与 `FormData`、约束校验与重置：值按字段的 `name` 提交，`required` 阻止空值提交，重置回到 `defaultValue`。应用自己判定的错误把字段标为 `invalid`，字段会显示错误、关联到文本框并设置 `aria-invalid`：
+
+```tsx
+<Field invalid>
+  <FieldLabel>评价</FieldLabel>
+  <Textarea defaultValue="很好。" />
+  <FieldError match>请至少写 20 个字。</FieldError>
+</Field>
+```
+
+`disabled` 可以放在文本框或字段上，禁用后不可编辑、退出 Tab 序列且不提交；`readOnly` 保留聚焦与提交但不可改。
+
+要在组件之外读写，用 `createInputController()` 创建控制器（与输入框共用同一套控制器）传给 `controller`，调用 `getValue / setValue / clear / focus`。写入像用户键入一样触发 `input`，被取消或值未变化时返回 `false`。发送后清空就是这样一行 `message.clear()`。参见[控制器](/docs/concepts/controllers)与[表单](/docs/concepts/forms)。
+
+## 样式与状态
+
+直接给原生文本框写样式，`data-slot` 是 `textarea`：
+
+- `data-filled`：已有文本。
+- `data-disabled`：自身或所在字段禁用。
+- `data-readonly`、`data-required`。
+- 在字段内还会收到字段的校验属性，例如 `data-invalid`。
+
+```css
+[data-slot="textarea"] {
+  inline-size: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-card);
+  font: inherit;
+  resize: vertical;
+}
+[data-slot="textarea"][data-invalid] {
+  border-color: var(--color-danger);
+}
+[data-slot="textarea"][data-disabled] {
+  opacity: 0.5;
+}
+```
+
+用了 `autoResize` 就靠 `min-height` / `max-height` 控制范围，不要再用固定 `height`。间距用逻辑属性写，文本才能跟随书写方向。详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+`Textarea` 接受全部原生 textarea 属性，另有：
+
+| 属性 | 类型 | 说明 |
+| --- | --- | --- |
+| `value` / `defaultValue` | `string` | 受控值与非受控初始值，重置回到后者。 |
+| `onValueChange` | `(value, details) => void` | 值变化时触发，可 `details.cancel()`。 |
+| `autoResize` | `boolean` | 随文本增高与回缩，用 CSS 高度限定范围。 |
+| `submitShortcut` | `"enter" \| "mod+enter"` | 提交快捷键，不设置则 `Enter` 只换行。 |
+| `onSubmit` | `(value, details) => void` | 自行处理快捷键提交，此时表单不提交。 |
+| `controller` | `object` | `createInputController()` 创建的控制器。 |
+| `disabled` / `readOnly` / `required` | `boolean` | 禁用、只读、必填。 |
+
+状态里提供 `filled`、`disabled`、`readOnly`、`required`，可用于渲染函数与按状态取类名。
+
+## 键盘与无障碍
+
+多行文本框没有对应的 WAI-ARIA 模式：它就是原生 `<textarea>`，标准的文本编辑、选区、拼写检查与表单行为全部保留。
+
+- 默认 `Enter` 换行；`Shift` + `Enter` 在 `"enter"` 模式下换行。
+- `"mod+enter"` 下用 Command / Control + `Enter` 提交，`"enter"` 下用 `Enter` 提交。
+- 输入法组字过程中的 `Enter` 不会提交，避免打断中文输入。
+
+给它可见的字段标签或 `aria-label`，说明与错误留在字段部件里，才能被正确关联。
+
+## 相关组件
+
+- [输入框](/docs/components/input)：单行文本，共享变更原因与控制器。
+- [令牌输入](/docs/components/token-input)：文本里混排可删除的令牌。
+- [字段](/docs/components/field)：标签、说明与校验信息。
+- [表单](/docs/concepts/forms)：提交、重置与原生约束。

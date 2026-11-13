@@ -1,0 +1,169 @@
+---
+title: "滑块"
+description: "Slider 用可拖动的滑块在刻度上取值：单值、区间、多滑块、竖向、格式化显示与提交时保存。"
+sidebar:
+  order: 38
+---
+
+`Slider`（滑块）用于在一段刻度上取一个数或一个区间，例如音量、价格范围。可以拖动滑块，也可以聚焦后用方向键调整。需要精确键入数字时用[数字输入](/docs/components/number-input)；只是展示一个比例、不接受输入时用[进度条](/docs/components/progress)。
+
+## 演示
+
+拖动滑块，或聚焦后用方向键调整音量，右上角的数值实时跟随：
+
+<DocDemo name="slider" />
+
+## 组合
+
+```text
+Slider
+├── SliderValue
+└── SliderControl
+    └── SliderTrack
+        ├── SliderIndicator
+        └── SliderThumb
+```
+
+- `Slider` 持有值，是包住所有滑块的分组。
+- `SliderControl` 接收按压：点它会移动最近的滑块并开始拖动，所以要给细轨道周围留出高度。
+- `SliderTrack` 是滑块运行的轨道，也是定位盒子。滑块与指示器用内联样式按百分比定位在它里面，因此必须给它尺寸。
+- `SliderIndicator` 填充到单个滑块处，或填充区间首尾两个滑块之间。
+- `SliderThumb` 是被拖动的把手，需要给它尺寸；每个值对应一个。
+- `SliderValue` 可选，显示格式化后的值，区间用连接号连起来。
+
+每个滑块内部渲染一个视觉隐藏的 `<input type="range">`，焦点落在它上面，手机上的屏幕阅读器因此能用自己的手势调整。滑块另有一个隐藏输入参与表单提交。
+
+## 用法
+
+```tsx
+import { Slider, SliderControl, SliderIndicator, SliderThumb, SliderTrack, SliderValue } from "@ui-sdk/react/slider";
+
+<Slider defaultValue={50}>
+  <SliderValue />
+  <SliderControl>
+    <SliderTrack>
+      <SliderIndicator />
+      <SliderThumb aria-label="音量" />
+    </SliderTrack>
+  </SliderControl>
+</Slider>;
+```
+
+单滑块由[字段](/docs/components/field)里的 `FieldLabel` 命名，或用滑块自己的 `aria-label`。`SliderValue` 变化时不会被屏幕阅读器重复播报，因为滑块本身已经报出当前值。
+
+## 区间与多个滑块
+
+值传数组就是区间，每个数字对应一个滑块，给每个滑块自己的 `index`（从 0 开始）与名字。滑块之间不会互相越过，点击轨道会移动最近的那个，指示器填充首尾之间。
+
+```tsx
+<Field>
+  <Slider defaultValue={[25, 50]} step={5} minStepsBetweenThumbs={2}>
+    <div>
+      <FieldLabel>价格</FieldLabel>
+      <SliderValue />
+    </div>
+    <SliderControl>
+      <SliderTrack>
+        <SliderIndicator />
+        <SliderThumb index={0} aria-label="最低价" />
+        <SliderThumb index={1} aria-label="最高价" />
+      </SliderTrack>
+    </SliderControl>
+  </Slider>
+</Field>
+```
+
+`minStepsBetweenThumbs` 规定相邻滑块至少隔开多少个步长，滑块会停在邻居处，`Home` / `End` 也只能移动到邻居允许的位置。滑块数量不限，三个、五个都是同样的写法。区间里请给每个滑块单独命名，整组的名字由 `FieldLabel` 或根上的 `aria-label` 提供。
+
+## 步长、边界与方向
+
+`min` 与 `max` 默认 0 与 100，`step` 从 `min` 起算，小数步长不会累积浮点误差（0.1 的步长可以干净地走到 0.3）。当整步走不到 `max` 时，终点是不超过 `max` 的最大整步。`largeStep` 供 `PageUp` / `PageDown` 与 `Shift` + 方向键使用，默认十个步长。
+
+`orientation="vertical"` 改为竖轴：底部是最小值，`ArrowUp` 增大，需要给滑块一个高度，组合方式与横向完全相同。所有部件都会带上 `data-orientation`。
+
+## 格式化与提交时保存
+
+`format` 接收 `Intl.NumberFormat` 选项或一个接受数值的函数，它决定 `SliderValue` 显示什么、屏幕阅读器为每个滑块读出什么，值本身仍是纯数字。`locale` 决定分隔符、数字与符号位置，不传时跟随页面 `lang`，未指定的情况下服务端标记使用英文格式，参见[服务端渲染](/docs/concepts/server-rendering)。
+
+```tsx
+const time = (minutes: number) => `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;
+
+<Slider defaultValue={[540, 1020]} min={0} max={1440} step={15}
+  minStepsBetweenThumbs={16} format={time} onValueCommit={(value, details) => save(value, details.reason)}>
+  …
+</Slider>;
+```
+
+`onValueChange` 在拖动的每一步都触发，`details.thumb` 指出是哪个滑块动了，`details.cancel()` 可拦截；`onValueCommit` 只在一次交互结束时触发一次（指针抬起、按键松开、屏幕阅读器调整完成），适合保存，没有改变值的按压不会提交。`details.reason` 区分 `track-press`、`drag`、`step-key`、`accessibility-adjust`、`reset`、`restore` 与 `imperative`，参见[状态与事件](/docs/concepts/state-and-events)。用 `createSliderController()` 创建控制器可调用 `getValue / setValue / focus(thumb?)`，写入值会被夹取、对齐步长并排序。
+
+## 样式与状态
+
+除了定位必需的内联样式，部件都不带外观：滑块与指示器是 `position: absolute` 加百分比位置。给 control 高度、给 track 尺寸与背景、给每个 thumb 尺寸即可。
+
+所有部件都带 `data-orientation`（`horizontal` / `vertical`）、`data-disabled`、`data-dragging`；`slider-thumb` 另有 `data-index`。焦点在滑块内部的 range 输入上，所以焦点环画在滑块上：
+
+```css
+[data-slot="slider-track"] {
+  block-size: 4px;
+  border-radius: 999px;
+  background: var(--color-border);
+}
+[data-slot="slider-thumb"] {
+  inline-size: 1rem;
+  block-size: 1rem;
+  border-radius: 50%;
+  background: var(--color-brand);
+}
+[data-slot="slider-thumb"]:has(:focus-visible) {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+[data-slot="slider"][data-dragging] [data-slot="slider-thumb"] { scale: 1.1; }
+```
+
+指示器与滑块还写出 CSS 变量，供跟随它们的元素（例如滑块上方的气泡标签）使用：
+
+- `slider-indicator`：`--slider-indicator-start`（起点百分比，单滑块为 `0%`）、`--slider-indicator-size`（覆盖轨道的百分比）。
+- `slider-thumb`：`--slider-thumb-position`（滑块在轨道上的百分比位置）。
+
+详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+`Slider` 常用属性：
+
+| 属性 | 类型 | 说明 |
+| --- | --- | --- |
+| `value` | `number \| number[]` | 受控值，单滑块是数字，多滑块是数组。 |
+| `defaultValue` | `number \| number[]` | 非受控初始值，重置回到它。 |
+| `onValueChange` | `(value, details) => void` | 每一步变化都触发，含 `details.thumb`，可取消。 |
+| `onValueCommit` | `(value, details) => void` | 一次交互结束时触发，用于保存。 |
+| `min` / `max` | `number` | 边界，默认 0 与 100。 |
+| `step` / `largeStep` | `number` | 常规步长与大步长。 |
+| `minStepsBetweenThumbs` | `number` | 相邻滑块最少间隔的步数。 |
+| `orientation` | `"horizontal" \| "vertical"` | 轴向，竖向向上增大。 |
+| `format` | `Intl.NumberFormatOptions \| ((value: number) => string)` | 显示与朗读格式。 |
+| `locale` | `string` | 格式化使用的地区。 |
+| `name` / `form` | `string` | 提交字段名与关联表单 id。 |
+| `disabled` / `readOnly` / `required` | `boolean` | 禁用、只读、标记必填。 |
+
+`SliderThumb` 只有 `index`（`number`），指出它显示第几个值。它的状态里有自己的 `thumbValue` 与 `percent`（0 到 100），因此只有自身值变化时它才重渲染。
+
+表单方面：不传 `name` 就不提交；单值提交数字，区间提交 `"start/end"`。`disabled` 不提交也不可聚焦，`readOnly` 可聚焦、可提交但拖不动。`required` 只加上 `data-required`，滑块永远有值，所以它不会阻止提交。参见[表单](/docs/concepts/forms)。
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA slider 模式，区间遵循多滑块 slider 模式。每个滑块是一个原生 range 输入，由 `FieldLabel` 或自己的 `aria-label` 命名，根是包住它们的分组。`Tab` 依次经过各个滑块。
+
+| 按键 | 行为 |
+| --- | --- |
+| `ArrowRight` / `ArrowUp` | 增加一个 `step`；从右到左书写时 `ArrowRight` 减小。 |
+| `ArrowLeft` / `ArrowDown` | 减少一个 `step`；从右到左书写时 `ArrowLeft` 增大。 |
+| `PageUp` / `PageDown`、`Shift` + 方向键 | 移动 `largeStep`，默认十个步长。 |
+| `Home` / `End` | 到最小值或最大值，或相邻滑块允许的最远处。 |
+
+## 相关组件
+
+- [数字输入](/docs/components/number-input)：需要精确键入与步进按钮时用它。
+- [评分](/docs/components/rating)：离散的星级打分。
+- [字段](/docs/components/field)：标签、说明与校验信息。

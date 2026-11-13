@@ -1,0 +1,140 @@
+---
+title: "日期选择器"
+description: "DatePicker 把文本框与日历结合，可按语言键入日期或从弹出日历里选，支持范围与表单，应用始终收到 ISO 日期字符串。"
+sidebar:
+  order: 25
+---
+
+`DatePicker`（日期选择器）把文本框与[日历](/docs/components/calendar)结合起来：人们可以按自己的语言键入日期，或从弹出层里选择，应用两种方式都收到 ISO 日期字符串。它支持范围与表单。只需逐段键入时用[日期输入](/docs/components/date-input)，只需内联月历时用[日历](/docs/components/calendar)。
+
+## 组合
+
+```text
+DatePicker
+├── DatePickerInput
+├── DatePickerTrigger
+├── DatePickerHint
+└── DatePickerContent
+```
+
+输入框接受日期，触发器打开日历，提示描述期望格式。空的 `DatePickerContent` 会替你渲染一个日历。每个日历部件也可用在 `DatePickerContent` 内，并从 date-picker 入口导出，需要加样式、改布局或自定义日内容时把它们写出来。空的 `DatePicker` 也会渲染输入框、触发器与日历；范围模式下为每一端各渲染一个输入框。
+
+## 用法
+
+```tsx
+import {
+  DatePicker,
+  DatePickerContent,
+  DatePickerHint,
+  DatePickerInput,
+  DatePickerTrigger,
+} from "@ui-sdk/react/date-picker";
+
+function Example() {
+  return (
+    <DatePicker defaultValue="2026-10-16">
+      <DatePickerInput aria-label="截止日期" />
+      <DatePickerTrigger>选择日期</DatePickerTrigger>
+      <DatePickerHint />
+      <DatePickerContent />
+    </DatePicker>
+  );
+}
+```
+
+日期是形如 `"2026-10-16"` 的字符串，不带时间或时区，无需日期库。`mode="single"`（默认）值为日期字符串或 `null`，`mode="range"` 值为 `[start, end]` 或 `null`。
+
+## 键入日期
+
+输入框在按 `Enter` 或失焦时解析文本，使用语言环境的日期顺序（美式英语 `10/16/2026`、德语 `16.10.2026`），也接受 ISO 日期、无分隔符数字、两位年份与月名；缺年份用当前年。提交后格式化有效日期，在此之前保留你的键入。无效文本保持可见并设 `aria-invalid` 与 `data-invalid`，原值不变，且表单不提交，直到文本重新成为日期或清空。`DatePickerHint` 的状态含示例日期，可显示在字段旁：
+
+```tsx
+<DatePickerHint>{(state) => `形如 ${state.example}`}</DatePickerHint>
+```
+
+## 范围选择
+
+`mode="range"` 用一个输入框放开始、另一个带 `end` 的放结束。选完开始后日历保持打开，两端都选定后关闭；键入的结束早于开始则无效。两端都有效之前范围为 `null`，清空任一输入会清空完整值但保留另一端可见的日期。并排两个月用 `months={2}` 并加一个 `offset={1}` 的 `CalendarGrid`，`pageBy="page"` 让两个月一起翻：
+
+```tsx
+<DatePicker mode="range" defaultValue={["2026-10-12", "2026-10-16"]}>
+  <DatePickerInput aria-label="入住" placeholder="入住" />
+  <DatePickerInput end aria-label="退房" placeholder="退房" />
+  <DatePickerTrigger>选择日期</DatePickerTrigger>
+  <DatePickerContent />
+</DatePicker>
+```
+
+`minDays` / `maxDays` 限制范围跨度（含两端），`allowUnavailable` 允许范围跨越不可用日期（如跨已预订夜的住宿）。
+
+## 预设与清除
+
+`DatePickerPreset` 选中它的 `value` 并关闭弹出层，值与当前选择匹配时暴露 `aria-pressed` 与 `data-selected`；相对日期（如最近七天）由你的应用计算。`DatePickerClear` 清空值并聚焦输入框，无日期可清时带 `data-empty`。`closeOnSelect` 控制选日期、选范围结束或按预设后是否关闭：
+
+```tsx
+<DatePickerPreset value={["2026-10-10", "2026-10-16"]}>最近 7 天</DatePickerPreset>
+<DatePickerPreset value={["2026-10-01", "2026-10-31"]}>本月</DatePickerPreset>
+<DatePickerClear aria-label="清空日期" />
+```
+
+## 约束、语言与受控
+
+`min` / `max` 限定可选日期，`unavailable` 接受与日历相同的匹配器（ISO 日期、`{ from, to }`、`{ weekday: [0, 6] }`、`{ before }`、`{ after }` 或函数），不可用日仍可聚焦以便键盘用户听到。`locale`、`weekStartsOn`、`weekdayFormat`、`monthFormat`、`fixedWeeks`、`showOutsideDays` 控制语言与布局。值用 `value` / `onValueChange` 受控（范围在两端都设好后才变更一次），月份用 `month` / `onMonthChange`，开合用 `open` / `onOpenChange`，`details.cancel()` 可拦截。`createDatePickerController()` 创建的控制器提供 `getValue / setValue / clear / getMonth / setMonth / previous / next / focus / open / close / toggle / isOpen`。参见[控制器](/docs/concepts/controllers)。
+
+## 样式与状态
+
+弹出层就地渲染进浏览器顶层。根带 `data-mode`（`single` / `range`）、`data-open` / `data-closed`、`data-disabled`、`data-readonly`；无效输入在该输入与根上设 `data-invalid`。触发器带 `data-open`，预设带 `data-selected`，清除带 `data-empty`，内容带 `data-starting-style` / `data-ending-style` 与 `data-presentation`。日历日带[日历的状态属性](/docs/components/calendar)。`DatePickerContent` 暴露 `--anchor-width`、`--available-height`、`--transform-origin`：
+
+```css
+[data-slot="date-picker-content"] {
+  transform-origin: var(--transform-origin);
+}
+[data-slot="date-picker-input"][data-invalid] {
+  border-color: var(--color-danger);
+}
+[data-slot="date-picker-preset"][data-selected] {
+  background: var(--color-accent);
+  color: var(--color-brand);
+}
+```
+
+详见[弹出层](/docs/concepts/popups)与[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+根 `DatePicker` 的常用属性：
+
+- `mode`（`"single" | "range"`）：选一个日期还是一个范围。
+- `value` / `defaultValue`（`DatePickerValue`）：ISO 日期、范围的 `[start, end]` 或 `null`。
+- `onValueChange`（`(value, details) => void`）：选日、键入提交、预设、清除、重置或控制器改值时调用。
+- `month` / `defaultMonth` / `onMonthChange`：日历显示的首月（如 `"2026-10"`）。
+- `open` / `defaultOpen` / `onOpenChange` / `closeOnSelect`：弹出层开合与选中后是否关闭。
+- `min` / `max` / `unavailable`：可选日期约束。
+- `months` / `pageBy`（`"month" | "page"`）：并排月数与翻页粒度。
+- `locale` / `weekStartsOn` / `weekdayFormat` / `monthFormat` / `fixedWeeks` / `showOutsideDays`：语言与布局。
+- `minDays` / `maxDays` / `allowUnavailable`：范围约束。
+- `name` / `startName` / `endName` / `required` / `form`：表单提交。
+- `presentation`（`"popover" | "sheet" | "auto"`）、`controller`（用 `createDatePickerController()` 创建）。
+
+`DatePickerInput` 接受 `end`（`boolean`，是否为范围结束端）；`DatePickerPreset` 接受 `value`；`DatePickerContent` 接受 `side`、`align`、`sideOffset`、`anchor`、`keepMounted` 等定位属性。
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA 日期选择器对话框模式：一个所有屏幕阅读器都能处理的纯文本输入，一个带 `aria-haspopup="dialog"` 与 `aria-expanded`、按所选日期命名的按钮，以及一个装着日历网格的对话框。打开时焦点移入网格，选日期或 `Escape` 关闭时回到按钮。
+
+| 按键 | 位置 | 行为 |
+| --- | --- | --- |
+| `Enter` | 输入框 | 提交键入的日期 |
+| `Alt` + `ArrowDown` | 输入框 | 打开日历 |
+| `Enter` / `Space` | 触发器 | 打开或关闭日历 |
+| `Escape` | 弹出层 | 先取消未完成的范围，否则关闭弹出层 |
+| `Tab` / `Shift+Tab` | 弹出层 | 在控件间移动，允许关闭时离开即关闭 |
+
+打开时聚焦所选日期，否则今天，否则首个可聚焦日。日历的方向键与月份导航在此同样可用；祖先 `dir="rtl"` 会反转左右方向键以跟随视觉顺序。
+
+## 相关组件
+
+- [日历](/docs/components/calendar)：内联月历，弹出层里的网格即它。
+- [日期输入](/docs/components/date-input)：逐段键入日期，无日历。
+- [时间输入](/docs/components/time-input)：只输入时间。
+- [字段](/docs/components/field)：命名并关联描述与校验。

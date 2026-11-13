@@ -1,0 +1,178 @@
+---
+title: "单选框"
+description: "RadioGroup 在一组互斥选项里选一个：方向键移动选中项、整组只有一个 Tab 停留点、随表单提交。"
+sidebar:
+  order: 35
+---
+
+`Radio`（单选框）与 `RadioGroup` 用于选项不多、只能选一个的场景，例如配送方式或套餐。组只保存一个值，整组只有一个 Tab 停留点，方向键在选项间移动并直接选中。可多选时用[复选框](/docs/components/checkbox)；选项很多、需要收起时用[选择器](/docs/components/select)。
+
+## 组合
+
+```text
+RadioGroup
+├── Radio
+│   └── RadioIndicator
+└── Radio
+    └── RadioIndicator
+```
+
+每个 `Radio` 都要有 `value`，并和它的文字一起包在 `label` 里。组的值就是被选中那一项的 `value`；`RadioIndicator` 只在所属项选中时显示。
+
+## 用法
+
+```tsx
+import { Field, FieldLabel } from "@ui-sdk/react/field";
+import { Radio, RadioGroup, RadioIndicator } from "@ui-sdk/react/radio";
+
+const speeds = [{ value: "standard", label: "标准" }, { value: "express", label: "加急" }, { value: "overnight", label: "次日达" }];
+
+<Field>
+  <FieldLabel>配送方式</FieldLabel>
+  <RadioGroup defaultValue="standard">
+    {speeds.map((speed) => (
+      <label key={speed.value}>
+        <Radio value={speed.value}><RadioIndicator /></Radio>
+        {speed.label}
+      </label>
+    ))}
+  </RadioGroup>
+</Field>;
+```
+
+外层字段的标签为整组命名；不用字段时给组传 `aria-label` 或 `aria-labelledby`。不传 `defaultValue` 时初始没有选中项，`Tab` 会落在第一个可用选项上。
+
+## 说明文字与选项卡
+
+某个选项需要额外解释时，把它单独放进一个 `Field`，用 `FieldLabel` 与 `FieldDescription`：内层字段把两者关联到这一项，外层字段仍为整组命名。
+
+```tsx
+<Field>
+  <FieldLabel>邮件通知</FieldLabel>
+  <RadioGroup defaultValue="daily">
+    <Field>
+      <Radio value="daily"><RadioIndicator /></Radio>
+      <div>
+        <FieldLabel>每日汇总</FieldLabel>
+        <FieldDescription>每天早上一封邮件。</FieldDescription>
+      </div>
+    </Field>
+  </RadioGroup>
+</Field>
+```
+
+把整张卡的内容包进同一个 `label`，卡片任意位置都可点击；卡片自身的选中外观用 `:has([data-checked])` 表达，例如 `[data-slot="card"]:has([data-checked]) { border-color: var(--color-brand); background: var(--color-brand-wash); }`。
+
+需要把一组选择连同标题、说明一起描述时，用 `FieldSet` 与 `FieldLegend`，再用 `aria-labelledby` 指向 legend 的 id、`aria-describedby` 指向说明的 id。
+
+## 指示器动画
+
+`RadioIndicator` 出现的首帧带 `data-starting-style`，退场期间带 `data-ending-style`，并在退场动画结束前保持挂载，因此可以直接用过渡：
+
+```css
+[data-slot="radio-indicator"] {
+  transition: opacity 0.15s, scale 0.15s;
+  &:is([data-starting-style], [data-ending-style]) {
+    opacity: 0;
+    scale: 0.5;
+  }
+}
+```
+
+`keepMounted` 让指示器在未选中时也留在页面里（带 `data-unchecked`），可以做悬停预览小圆点这类效果。参见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## 受控、控制器与循环
+
+```tsx
+const [value, setValue] = React.useState<string | null>("standard");
+
+<RadioGroup value={value} onValueChange={(next) => setValue(next)} loop={false}>
+  …
+</RadioGroup>;
+```
+
+`value` 传 `null` 表示都不选中。`onValueChange(value, details)` 的 `details.reason` 区分 `item-press`、`list-navigation`、`reset`、`restore` 与 `imperative`，`details.cancel()` 可拦截变更，参见[状态与事件](/docs/concepts/state-and-events)。
+
+方向键默认首尾循环，`loop={false}` 让它停在两端。要从组件树外操作，用 `createRadioGroupController()` 创建控制器传给组，调用 `getValue / setValue / focus`；`setValue` 对禁用项与只读组无效，被取消时返回 `false`。参见[控制器](/docs/concepts/controllers)。
+
+## 表单与校验
+
+给组传 `name` 才会提交值，不传则不提交任何数据；`form` 可关联页面中其他表单的 id，表单重置回到 `defaultValue`。`required` 在未选中时阻止提交；放进带 `FieldError` 的[字段](/docs/components/field)里，提交失败会在组下方显示错误并把焦点移到组上。
+
+```tsx
+<Field>
+  <FieldLabel>订单通知</FieldLabel>
+  <RadioGroup name="updates" required>
+    <label>
+      <Radio value="email"><RadioIndicator /></Radio>
+      仅邮件
+    </label>
+    <label>
+      <Radio value="sms"><RadioIndicator /></Radio>
+      仅短信
+    </label>
+  </RadioGroup>
+  <FieldError>请选择订单通知方式。</FieldError>
+</Field>
+```
+
+`disabled` 可以放在组上或单个 `Radio` 上：禁用项不可聚焦、不可选中，方向键会跳过它；禁用的组不提交值。`readOnly` 保留焦点移动与提交，但不改变选中项。外层 `<fieldset disabled>` 会向下继承。参见[表单](/docs/concepts/forms)。
+
+## 样式与状态
+
+- 组 `radio-group`：`data-disabled`、`data-readonly`、`data-required`。
+- 选项 `radio`：选中带 `data-checked`，未选中带 `data-unchecked`，另有 `data-disabled`、`data-readonly`、`data-required`。
+- 指示器 `radio-indicator`：与所属选项相同的状态属性，另加 `data-starting-style`、`data-ending-style`。
+
+```css
+[data-slot="radio"] {
+  inline-size: 1rem;
+  block-size: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+}
+[data-slot="radio"][data-checked] {
+  border-color: var(--color-brand);
+}
+[data-slot="radio"][data-disabled] {
+  opacity: 0.45;
+}
+```
+
+`Radio` 渲染的是带 `radio` 角色的按钮，另有一个隐藏的原生 radio 参与表单，所以圆点、边框都画在 `radio` 与 `radio-indicator` 上。
+
+## API
+
+`RadioGroup`：
+
+| 属性 | 类型 | 说明 |
+| --- | --- | --- |
+| `value` | `T \| null` | 受控值，`null` 表示都不选中。 |
+| `defaultValue` | `T \| null` | 非受控初始选中值，重置回到它。 |
+| `onValueChange` | `(value, details) => void` | 选中值将要变化时触发，可取消。 |
+| `name` / `form` | `string` | 提交字段名（不传则不提交）与关联表单 id。 |
+| `required` | `boolean` | 未选中时阻止提交。 |
+| `disabled` / `readOnly` | `boolean` | 禁用整组、只读整组。 |
+| `loop` | `boolean` | 方向键是否首尾循环，默认开启。 |
+| `controller` | `object` | `createRadioGroupController()` 创建的控制器。 |
+
+`Radio`：`value`（`string`，必填，选中时组变成这个值）、`disabled`（`boolean`，跳过该项）。`RadioIndicator`：`keepMounted`（`boolean`，未选中时是否保留在页面里）。
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA radio group 模式，行为与共享 `name` 的原生 radio 一致。
+
+| 按键 | 行为 |
+| --- | --- |
+| `Tab` | 进入组，落在选中项或第一个可用项，整组只停一次。 |
+| 方向键 | 移到上一个或下一个选项并选中它，跳过禁用项。 |
+| `Space` | 选中当前聚焦的选项。 |
+| `Enter` | 提交所在表单。 |
+
+组的名称来自 `FieldLabel`、`FieldSet` 的 legend 或 `aria-label` / `aria-labelledby`；每个选项的名称来自包裹它的 `label` 或内层 `FieldLabel`。
+
+## 相关组件
+
+- [复选框](/docs/components/checkbox)：可以同时选中多项。
+- [选择器](/docs/components/select)：选项收进弹出列表。
+- [切换按钮](/docs/components/toggle)：按下一组按钮式的互斥选项。

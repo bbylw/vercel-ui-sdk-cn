@@ -1,0 +1,162 @@
+---
+title: "抽屉"
+description: "Drawer 从屏幕边缘滑出可拖拽的面板：吸附点、键盘手柄、模态阈值与页面联动，共享 Dialog 的焦点与 dismiss 行为。"
+sidebar:
+  order: 53
+---
+
+`Drawer`（抽屉）给任务一张贴着屏幕边缘、可拖拽调整的面板，不必离开页面。它共享[对话框](/docs/components/dialog)的焦点与 dismiss 行为，再加上拖拽、吸附点（snap points）和可键盘操作的手柄。居中呈现的聚焦任务用 Dialog；需要明确回答的确认用[警告对话框](/docs/components/alert-dialog)。
+
+## 组合
+
+```text
+Drawer
+├── DrawerTrigger
+├── DrawerBackdrop
+└── DrawerContent
+    ├── DrawerTitle
+    ├── DrawerDescription
+    └── DrawerClose
+```
+
+`DrawerContent` 就是面板：抽屉把它放进全屏视口并用 `translate` 移动。你负责尺寸、表面与圆角，定位与位移交给抽屉；背板给个颜色（如 `bg-black/30`），透明度由抽屉管理。多吸附点时加 `DrawerHandle`，单吸附点用装饰性横条即可。
+
+## 用法
+
+```tsx
+import {
+  Drawer,
+  DrawerBackdrop,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@ui-sdk/react/drawer";
+
+function Example() {
+  return (
+    <Drawer>
+      <DrawerTrigger>筛选</DrawerTrigger>
+      <DrawerBackdrop />
+      <DrawerContent>
+        <DrawerTitle>筛选</DrawerTitle>
+        <DrawerDescription>缩小结果范围。</DrawerDescription>
+        <DrawerClose>完成</DrawerClose>
+      </DrawerContent>
+    </Drawer>
+  );
+}
+```
+
+长内容放进内部 `min-h-0 flex-1 overflow-y-auto` 区域：向下拖先滚动内容，滚到顶后同一手势接着移动抽屉，关一张长面板不需要拖两次。
+
+## 吸附点与手柄
+
+`snapPoints` 是面板可以停靠的位置：`0.5` 是视口的一半，大于 1 的数字与 `"320px"` 是像素，还支持 `"20rem"`、`"50%"` 与 `"content"`（自身尺寸，默认）。打开时停在第一个点或 `defaultSnapPoint`，拖拽后就近停靠，快速轻扫可以跳过中间点。面板的 CSS 尺寸是上限：想让最大点接近全屏，给内容设 `h-[calc(100dvh-3rem)]` 之类的高度。
+
+```tsx
+<Drawer snapPoints={[0.25, 0.5, 1]} defaultSnapPoint={0.5} expandOnScroll>
+  <DrawerTrigger>查找地点</DrawerTrigger>
+  <DrawerBackdrop />
+  <DrawerContent>
+    <DrawerHandle aria-label="调整大小" />
+    <DrawerTitle>附近的地点</DrawerTitle>
+    {/* 列表 */}
+  </DrawerContent>
+</Drawer>
+```
+
+`DrawerHandle` 是有无障碍名称的按钮：按一下移到下一个更大的吸附点并循环，沿抽屉轴的方向键逐级移动，`Home` / `End` 到两端。`snapPoint` 与 `onSnapPointChange` 可独立于 `open` 受控；取消变更时被拒的滑动会弹回。
+
+## 方向与模态阈值
+
+`side` 选择 `bottom` / `top` / `left` / `right`，逻辑值 `start` / `end` 跟随书写方向，内容的 `data-side` 给出解析后的物理边。侧边抽屉可设 `preventEdgeSwipe` 阻止 iOS Safari 的边缘返回手势（代价是贴边的点击也失效）。
+
+`modalAbove` 让地图式交互成为可能：停在该吸附点及以下时页面可用、不压暗、不锁滚动、无 `aria-modal`（`data-interactive` 标记此态）；高于它才应用 `modal`（`true` / `"trap-focus"` / `false`，同 Dialog）。切换发生在面板停稳时，不移动焦点。`dismissible={false}` 时 Esc、外部按压、返回手势与滑动都关不掉，`onDismissAttempt` 报告尝试，面板会弹回。
+
+## 动作面板与控制器
+
+给每个 Close 部件一个 `value`，抽屉就成了动作面板：`createDrawerController<Payload, Result>()` 的 `open()` 返回的 Promise 带着所选 `returnValue` resolve，Esc、外部按压或滑走则没有值。把风险最小的动作放最前，因为键盘打开从那里开始。
+
+```tsx
+const photoActions = createDrawerController<undefined, "share" | "delete">();
+
+const { returnValue = "cancel" } = await photoActions.open();
+
+<Drawer controller={photoActions}>
+  <DrawerBackdrop />
+  <DrawerContent>
+    <DrawerTitle>海滩.jpg</DrawerTitle>
+    <DrawerClose value="share">分享</DrawerClose>
+    <DrawerClose value="delete">删除</DrawerClose>
+  </DrawerContent>
+</Drawer>;
+```
+
+外部触发器传 `payload`，内容从 `state.payload` 读取，一个面板即可服务每一行；`getSnapPoint()` / `setSnapPoint()` 还能用代码移动面板。参见[控制器](/docs/concepts/controllers)。
+
+## 驱动与页面联动
+
+`driver` 决定面板如何移动：`"scroll-snap"` 用原生滚动与 CSS 吸附（触摸屏上的底部面板），`"pointer"` 用指针拖拽加弹簧运动，默认 `"auto"` 按输入方式与配置选择，`data-driver` 报告结果。`physics` 可覆盖 `sheetPhysics.ios` 的 `response`、`dampingRatio` 等参数。
+
+`DrawerOutlet` 让页面元素跟随面板进度：`keyframes` 从收起到完全展开插值，如 `{ scale: [1, 0.94], borderRadius: ["0px", "24px"] }`，变换与透明度在合成器上运行。`themeColor` 让 `<meta name="theme-color">` 随背板压暗，浏览器工具栏一起变暗。
+
+## 样式与状态
+
+各部件的 `data-slot` 为 `drawer-trigger`、`drawer-backdrop`、`drawer-viewport`、`drawer-content`、`drawer-handle`、`drawer-close`、`drawer-outlet`：
+
+- 内容与视口：`data-open` / `data-closed`、`data-side`、`data-starting-style` / `data-ending-style`；视口在软键盘弹出时带 `data-keyboard`。
+- 内容与手柄：`data-snap-point`（当前停靠点，如 `0.5` 或 `content`）、`data-expanded`（停在最大点）；内容另有 `data-dragging`、`data-driver`、`data-interactive`。
+- Close 部件：`action` 运行中带 `data-pending`。
+
+CSS 变量：内容与 Outlet 上有 `--drawer-progress`（开合进度 0 到 1）、`--drawer-dim`（压暗程度）、`--drawer-expand`（接近最大点的程度）、`--drawer-stack`（上方嵌套面板数，平滑上升）；视口上有 `--keyboard-inset` 与 `--visual-viewport-*`。位移与背板透明度留给抽屉，其余随你：
+
+```css
+[data-slot="drawer-content"] {
+  border-radius: 16px 16px 0 0;
+  background: var(--color-surface);
+  scale: calc(1 - var(--drawer-stack) * 0.04);
+}
+```
+
+嵌套时 Esc 只关最上层，父面板可用 `--drawer-stack` 后退。减少动态效果时抽屉改为淡入淡出。详见[弹出层](/docs/concepts/popups)。
+
+## API
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `open` / `defaultOpen` | `boolean` | 受控 / 非受控的开合状态。 |
+| `onOpenChange` | `(open, details) => void` | 开合变更；`details.reason` 含 `"swipe"`。 |
+| `snapPoints` | `SnapPoint[]` | 可停靠的位置：分数、像素、`rem`、`%` 或 `"content"`。 |
+| `snapPoint` / `defaultSnapPoint` | `SnapPoint` | 受控 / 初始吸附点。 |
+| `onSnapPointChange` | `(snapPoint, details) => void` | 停靠点变化及原因。 |
+| `side` | `Side` | 来源边，`start` / `end` 跟随书写方向。 |
+| `modal` | `boolean \| "trap-focus"` | 模态级别，同 Dialog。 |
+| `modalAbove` | `SnapPoint` | 该点及以下页面保持可用、不压暗。 |
+| `dismissible` / `onDismissAttempt` | `boolean` / `(details) => void` | 拦截关闭并处理被拒的尝试。 |
+| `driver` / `physics` | `SheetDriverName` / `Partial<SheetPhysics>` | 移动驱动与弹簧参数。 |
+| `expandOnScroll` | `boolean` | 在可滚动内容上向上拖时先展开抽屉。 |
+| `themeColor` / `preventEdgeSwipe` | `boolean` | 工具栏随背板变暗 / 阻止边缘返回手势。 |
+| `controller` | `DrawerController` | 用 `createDrawerController()` 创建。 |
+
+`DrawerContent` 支持 `initialFocus`、`finalFocus`、`keepMounted`、`container`；`DrawerClose` 有 `value` 与 `action`（Promise 期间面板保持打开）。
+
+## 键盘与无障碍
+
+| 按键 | 行为 |
+| --- | --- |
+| `Enter` / `Space` | 触发器上打开；手柄上移到下一个吸附点 |
+| 沿轴方向键 | 手柄上逐级移动，不循环 |
+| `Home` / `End` | 手柄上移到最小 / 最大吸附点 |
+| `Tab` / `Shift+Tab` | 在面板控件间移动，模态时锁在内部 |
+| `Escape` | 可 dismiss 时关闭最上层抽屉 |
+
+模态时遵循 WAI-ARIA 模态对话框模式：`aria-modal`、焦点锁在内部、页面 inert，由标题命名、描述补充。手机上的屏幕阅读器把手柄当滑杆调节。触摸打开聚焦内容本身，避免立刻弹出软键盘；键盘弹出时视口收缩，聚焦字段在面板内滚入视野。
+
+## 相关组件
+
+- [对话框](/docs/components/dialog)：居中呈现的聚焦任务，也可用 `presentation="sheet"` 做简单底部面板。
+- [警告对话框](/docs/components/alert-dialog)：动作需要再次确认时使用。
+- [弹出层](/docs/concepts/popups)：顶层渲染、模态与 dismiss 的共享模型。
+- [控制器](/docs/concepts/controllers)：从任意位置打开面板并等待所选动作。

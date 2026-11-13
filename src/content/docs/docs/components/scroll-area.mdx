@@ -1,0 +1,157 @@
+---
+title: "滚动区域"
+description: "ScrollArea 给原生滚动加上可样式化的滚动条、边缘渐隐与跟随末尾行为：滚轮、触摸、键盘与页内查找一切照旧。"
+sidebar:
+  order: 76
+---
+
+`ScrollArea`（滚动区域）让一块内容拥有自己的滚动区，滚动条随你的设计走。滚动仍由浏览器原生完成，滚轮、触摸、键盘、页内查找都照常工作。适合侧栏长列表、聊天记录、代码块。要按页吸附的展示型滑动用[轮播](/docs/components/carousel)；要让用户分配窗格尺寸用[可调整大小](/docs/components/resizable)。
+
+## 组合
+
+```text
+ScrollArea
+├── ScrollAreaViewport
+│   └── ScrollAreaContent
+├── ScrollAreaScrollbar
+│   └── ScrollAreaThumb
+├── ScrollAreaCorner
+└── ScrollAreaScrollToEnd
+```
+
+视口是真正的滚动元素：给根一个尺寸，视口占满根的宽高，滚动条盖在视口边缘。每个要样式化的轴写一条 `ScrollAreaScrollbar`；一条都不写时保留浏览器原生滚动条，其余功能照常。两轴都溢出时 `ScrollAreaCorner` 填补两条滚动条交会的角落。滑块出现与否由溢出决定，滚动条何时可见由 `type` 决定。
+
+## 用法
+
+```tsx
+import {
+  ScrollArea,
+  ScrollAreaContent,
+  ScrollAreaScrollbar,
+  ScrollAreaThumb,
+  ScrollAreaViewport,
+} from "@ui-sdk/react/scroll-area";
+
+const tags = Array.from({ length: 50 }, (_, i) => `v1.2.0-beta.${50 - i}`);
+
+function Example() {
+  return (
+    <ScrollArea>
+      <ScrollAreaViewport role="region" aria-label="版本标签">
+        <ScrollAreaContent>
+          <ul>
+            {tags.map((tag) => (
+              <li key={tag}>{tag}</li>
+            ))}
+          </ul>
+        </ScrollAreaContent>
+      </ScrollAreaViewport>
+      <ScrollAreaScrollbar>
+        <ScrollAreaThumb />
+      </ScrollAreaScrollbar>
+    </ScrollArea>
+  );
+}
+```
+
+横向滚动条加 `orientation="horizontal"`，内容不再换行而是按需变宽。
+
+## 滚动条何时显示
+
+根上的 `type` 控制可见时机：`"hover"`（默认）在滚动或指针悬停时显示，`"scroll"` 只在滚动时，`"auto"` 只要内容溢出就显示，`"always"` 不溢出也显示。`"scroll"` 与 `"hover"` 下 `scrollHideDelay` 决定停止后保留多久（默认 600 毫秒）。该显示时滚动条带 `data-visible`，用它写显隐样式；隐藏的滚动条不拦截点击，按压直达下面的内容。
+
+## 跟随末尾与跳转按钮
+
+聊天、流式输出这类不断长长的内容设 `stickToEnd`：初始停在末尾，新内容保持可见；用户向上一滚即松手，滚回末尾又重新跟随。`ScrollAreaScrollToEnd` 是「回到最新」按钮，视图离开末尾且不在去的路上时带 `data-visible`，否则 inert。
+
+```tsx
+<ScrollArea stickToEnd>
+  <ScrollAreaViewport role="log" aria-label="聊天记录">
+    <ScrollAreaContent>
+      {messages.map((m) => (
+        <p key={m.id}>{m.text}</p>
+      ))}
+    </ScrollAreaContent>
+  </ScrollAreaViewport>
+  <ScrollAreaScrollbar>
+    <ScrollAreaThumb />
+  </ScrollAreaScrollbar>
+  <ScrollAreaScrollToEnd>回到最新</ScrollAreaScrollToEnd>
+</ScrollArea>
+```
+
+`createScrollAreaController()`（来自 `@ui-sdk/react/scroll-area`）创建的控制器提供 `scrollToEnd / scrollToStart / isAtEnd / isAtStart / isSticking`。两个滚动方法接受 `{ behavior: "instant" | "smooth" }`，`"smooth"` 会跟随仍在增长的内容，用户偏好减少动效时改为立即跳转。`isAtEnd()` 在滚动事件里也能读到实时位置，先于状态属性更新。
+
+## 边缘渐隐与进度
+
+根上有一组每帧更新的 CSS 变量：`--scroll-area-overflow-y-start / y-end / x-start / x-end` 是内容超出各边缘的像素数，`--scroll-area-progress-y / -x` 是 0 到 1 的滚动进度，`--scroll-area-corner-width / height` 是两条滚动条同时显示时对方的占位。它们经 `CSS.registerProperty` 注册为不继承，滚动不会引发内容重样式；根的子元素要读取时先写 `--scroll-area-overflow-y-start: inherit` 取回：
+
+```css
+.top-fade {
+  --scroll-area-overflow-y-start: inherit;
+  opacity: min(var(--scroll-area-overflow-y-start) / 24, 1);
+}
+```
+
+滚动条自己也有变量：`--scroll-area-thumb-height` / `--scroll-area-thumb-width` 是滑块长度，`--scroll-area-thumb-offset` 是滑块距轨道起点的偏移（RTL 为负），滑块的尺寸与位移由组件内联读取，无需你计算。
+
+## 指针交互
+
+- 拖动滑块：内容按比例跟随，不会选中文字，scroll snap 暂停到指针抬起，`Escape` 把内容放回拖动起点。
+- 按压轨道：向指针方向翻约一屏，按住持续翻页直到滑块到达指针；加 `Alt`（Mac 为 Option）直接跳到按压处并进入拖动。
+- 滚动条上的滚轮先滚视口，视口到头后再滚页面。按压滚动条不会移动焦点。
+
+## 样式与状态
+
+各部件带 `data-slot`：`scroll-area`、`scroll-area-viewport`、`scroll-area-content`、`scroll-area-scrollbar`、`scroll-area-thumb`、`scroll-area-corner`、`scroll-area-scroll-to-end`。根带 `data-overflow-x / y`、`data-at-start / end`、`data-at-x-start / x-end / y-start / y-end`、`data-scrolling`、`data-hovering`、`data-sticking`；滚动条带 `data-orientation`、`data-visible`、`data-scrolling`、`data-hovering`、`data-dragging`；滑块带 `data-orientation`、`data-dragging`。
+
+```css
+[data-slot="scroll-area"] {
+  width: 320px;
+  height: 240px;
+}
+[data-slot="scroll-area-viewport"] {
+  width: 100%;
+  height: 100%;
+}
+[data-slot="scroll-area-scrollbar"] {
+  width: 8px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+[data-slot="scroll-area-scrollbar"][data-visible] {
+  opacity: 1;
+}
+[data-slot="scroll-area-thumb"] {
+  border-radius: 4px;
+  background: rgb(0 0 0 / 25%);
+}
+```
+
+## API
+
+根 `ScrollArea` 的主要 props：
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `type` | `"hover" \| "scroll" \| "auto" \| "always"` | 滚动条可见时机，默认 `"hover"`。 |
+| `scrollHideDelay` | `number` | 停止滚动 / 离开后保留毫秒数，默认 600。 |
+| `stickToEnd` | `boolean` | 初始停在末尾并跟随新内容。 |
+| `controller` | `object` | 用 `createScrollAreaController()` 创建。 |
+
+`ScrollAreaScrollbar` 有 `orientation`；其余部件没有专属 props，只接受所渲染元素的属性。
+
+## 键盘与无障碍
+
+滚动区域没有专门的 WAI-ARIA 模式：视口就是原生滚动元素，键盘可达性遵循 axe 的 scrollable-region-focusable 规则。
+
+- 可滚动且内部没有可聚焦内容的视口自身是 Tab 停靠点；内部有链接、输入框时不是，`Tab` 直达内容，聚焦内容会把它滚入视野。
+- 焦点进入后，方向键、`PageUp` / `PageDown`、`Home` / `End`、`Space` 按原生行为滚动。
+- 值得被找到的视口加 `role="region"` 与 `aria-label` 成为地标；聊天用 `role="log"`。
+- 滚动条与角落对屏幕阅读器隐藏，读屏自己滚动视口。
+
+## 相关组件
+
+- [轮播](/docs/components/carousel)：按页吸附的幻灯片滚动。
+- [可调整大小](/docs/components/resizable)：分栏布局里配合滚动面板使用。
+- [样式与动画](/docs/concepts/styling-and-animation)：状态属性驱动的样式约定。

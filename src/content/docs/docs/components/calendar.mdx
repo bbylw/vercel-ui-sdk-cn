@@ -1,0 +1,261 @@
+---
+title: "日历"
+description: "Calendar 在月历网格里选一个日期、多个日期或一段范围，支持不可选日期、双月并排、月份选择与控制器。"
+sidebar:
+  order: 91
+---
+
+`Calendar`（日历）把日期直接显示在页面上，适合预订、排期这类需要日期常驻可见的场景。它负责选择模式、键盘导航、月份翻页与无障碍网格语义，表格结构与每个日期的内容由你渲染。需要「文本框 + 弹出日历」时用[日期选择器](/docs/components/date-picker)。
+
+## 组合
+
+```text
+Calendar
+├── CalendarPrevious
+├── CalendarHeading
+├── CalendarNext
+└── CalendarGrid
+    ├── CalendarWeekdays
+    │   └── CalendarWeekday
+    └── CalendarWeeks
+        └── CalendarDay
+```
+
+标题命名当前显示的月份，Previous 与 Next 翻月，网格里放星期表头与日期。`CalendarWeekdays` 与 `CalendarWeeks` 渲染表格结构，你渲染每个表头与日期。空的 `Calendar` 会渲染默认结构，空的 `CalendarGrid` 会渲染表头与各周；把部件写出来是为了加自己的类名与内容。每个网格以所在月份命名，并带 `grid` 角色。
+
+## 用法
+
+日期是 ISO 字符串，例如 `"2026-10-16"`，不带时间与时区，也不需要日期库。
+
+```tsx
+import {
+  Calendar,
+  CalendarDay,
+  CalendarGrid,
+  CalendarHeading,
+  CalendarNext,
+  CalendarPrevious,
+  CalendarWeekday,
+  CalendarWeekdays,
+  CalendarWeeks,
+} from "@ui-sdk/react/calendar";
+
+function Example() {
+  return (
+    <Calendar defaultValue="2026-10-16">
+      <div data-slot="row">
+        <CalendarPrevious aria-label="上个月">
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="m10 3-5 5 5 5" fill="none" stroke="currentColor" />
+          </svg>
+        </CalendarPrevious>
+        <CalendarHeading />
+        <CalendarNext aria-label="下个月">
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="m6 3 5 5-5 5" fill="none" stroke="currentColor" />
+          </svg>
+        </CalendarNext>
+      </div>
+      <CalendarGrid>
+        <CalendarWeekdays>
+          {(index) => <CalendarWeekday index={index} />}
+        </CalendarWeekdays>
+        <CalendarWeeks>
+          {(cell) => <CalendarDay value={cell.date} />}
+        </CalendarWeeks>
+      </CalendarGrid>
+    </Calendar>
+  );
+}
+```
+
+Previous 与 Next 默认名称是英文的 Previous month / Next month，中文页面请像上面这样传 `aria-label`。
+
+## 选择模式与值
+
+| 模式 | 值 |
+| --- | --- |
+| `"single"`（默认） | 一个日期字符串或 `null`。 |
+| `"multiple"` | 排好序的日期字符串数组。 |
+| `"range"` | `[start, end]` 或 `null`。 |
+
+值的形状与模式不符时按未选择处理。`mode="multiple"` 每次按下独立切换一个日期，数组始终排序。`mode="range"` 先选起点再选终点，指针或焦点移动时预览范围，两端都选定后值才变化；选一个早于起点的日期会结束范围并成为新起点，`Escape` 取消未完成的范围。
+
+```tsx
+<Calendar mode="range" months={2} defaultValue={["2026-10-12", "2026-10-16"]}>
+  <CalendarPrevious aria-label="上个月" />
+  <CalendarHeading />
+  <CalendarNext aria-label="下个月" />
+  <div data-slot="row">
+    {[0, 1].map((offset) => (
+      <CalendarGrid key={offset} offset={offset}>
+        <CalendarWeekdays>{(index) => <CalendarWeekday index={index} />}</CalendarWeekdays>
+        <CalendarWeeks>{(cell) => <CalendarDay value={cell.date} />}</CalendarWeeks>
+      </CalendarGrid>
+    ))}
+  </div>
+</Calendar>
+```
+
+单选模式下加 `deselectable`，再按一次已选日期即可清除选择；不加则保持选中。
+
+## 不可选日期与边界
+
+`unavailable` 用数据描述不可选的日期：ISO 日期、`{ from, to }`、`{ weekday: [0, 6] }`（周末，0 是周日）、`{ before }`、`{ after }`、判断函数，或这些匹配器组成的数组。不可选日期不能被选中，但仍可聚焦，键盘与屏幕阅读器用户能发现它们，并读到 `aria-disabled` 与 `data-unavailable`。
+
+```tsx
+const unavailable = [
+  "2026-10-08",
+  { from: "2026-10-20", to: "2026-10-23" },
+  { weekday: [0, 6] },
+];
+
+<Calendar unavailable={unavailable} min="2026-10-05" max="2026-11-20">
+  …
+</Calendar>;
+```
+
+`min` 与 `max` 是最早与最晚可选日期：范围外的日期无法获得焦点，方向键停在边界，Previous 与 Next 停在对应月份。`disabled` 让聚焦、选择与翻月全部失效；`readOnly` 允许翻月与移动焦点查看日期，但选中值不变。范围模式另有 `minDays`、`maxDays`（含两端的天数上下限）与 `allowUnavailable`（允许范围跨越不可选日期，例如跨过已被预订的一晚）。
+
+## 多月、月份选择与语言
+
+`months` 决定并排显示几个月，每个 `CalendarGrid` 用 `offset` 指定自己是第几个月（从 0 开始）。方向键在网格之间移动而不翻页；已被其他可见月份显示的日期留空单元格，保证每个日期只出现一次。`pageBy="page"` 让 Previous、Next 与越过可见网格的导航一次移动全部月份。
+
+`fixedWeeks` 让每个月都渲染六周，日历高度不再跳动；`showOutsideDays={false}` 把相邻月份的日期留空。
+
+`CalendarMonthSelect` 与 `CalendarYearSelect` 是原生 `select`，用于直接跳到某个日期（例如生日）。年份选项从 `min` 到 `max`，没有边界时取当前显示年份的前后各十年，超出边界的月份被禁用。它们以 `select-change` 原因更新第一个显示的月份。想用自己的选择器时，改为控制日历的 `month`，并在日历里保留一个 `CalendarHeading`（可以视觉隐藏），让网格仍有名称。
+
+`locale` 决定月份名、星期表头与完整日期标签，不传时挂载后跟随页面 `lang`，再退回浏览器语言；服务端与客户端首帧用英文。每周第一天跟随地区，也可以用 `weekStartsOn` 固定（0 是周日）。`weekdayFormat` 与 `monthFormat` 取 `"narrow"`、`"short"`、`"long"`，屏幕阅读器仍读完整名称。中文月历通常写成 `<Calendar locale="zh-CN" weekStartsOn={1} weekdayFormat="short" monthFormat="long">`。
+
+日期始终是公历；`today` 与 `timeZone` 决定「今天」是哪一天，用于 `aria-current` 与起始月份，默认在客户端按浏览器时区读取。
+
+## 受控与控制器
+
+传 `value` 与 `onValueChange` 控制选择，传 `month` 与 `onMonthChange` 控制显示的月份；非受控用 `defaultValue` 与 `defaultMonth`。`details.reason` 区分 `item-press`、`previous-press`、`next-press`、`list-navigation`、`select-change`、`imperative`，`details.cancel()` 可以拦截。
+
+要从组件树外操作，用 `createCalendarController()` 创建控制器传给根。聚焦另一个月的日期会先把那个月显示出来：
+
+```tsx
+import { addDays, endOfMonth, startOfMonth } from "@ui-sdk/core/date";
+import { createCalendarController } from "@ui-sdk/react/calendar";
+
+const today = "2026-10-16";
+const presets = [
+  { label: "最近 7 天", range: [addDays(today, -6), today] },
+  { label: "本月", range: [startOfMonth(today), endOfMonth(today)] },
+  { label: "未来 30 天", range: [today, addDays(today, 29)] },
+] as const;
+
+const [calendar] = React.useState(() => createCalendarController());
+
+function apply(range: readonly string[]) {
+  calendar.setValue([...range]);
+  calendar.focus(range[0]);
+}
+
+<div data-slot="stack">
+  <div data-slot="controls">
+    {presets.map((preset) => (
+      <button key={preset.label} type="button" onClick={() => apply(preset.range)}>
+        {preset.label}
+      </button>
+    ))}
+  </div>
+  <Calendar mode="range" controller={calendar} today={today} defaultMonth="2026-10">…</Calendar>
+</div>;
+```
+
+控制器提供 `getValue / setValue / getMonth / setMonth / previous / next / focus`，写入方法接受可选的 `{ reason, event }`，在被取消、无处可去、禁用或只读时返回 `false`。参见[控制器](/docs/concepts/controllers)。
+
+## 样式与状态
+
+日期用 `data-selected`、`data-today`、`data-outside`、`data-unavailable`、`data-disabled` 区分；范围另有起点、中间、终点与未完成预览。导航按钮到达边界时也带 `data-disabled`。示例里的 `data-slot="row"`、`data-slot="stack"`、`data-slot="controls"` 只是布局容器，用 flex 或 grid 自己定义。
+
+- 根 `calendar`：`data-mode`（`single`、`multiple`、`range`）、`data-readonly`、`data-disabled`。
+- `calendar-previous`、`calendar-next`、`calendar-grid`、`calendar-month-select`、`calendar-year-select`：`data-disabled`。
+- `calendar-day`：`data-value`（ISO 日期）、`data-selected`、`data-today`、`data-disabled`、`data-unavailable`、`data-outside`、`data-range-start`、`data-range-middle`、`data-range-end`、`data-preview`。
+
+```css
+[data-slot="calendar-day"] {
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border-radius: 6px;
+}
+[data-slot="calendar-day"][data-outside] {
+  opacity: 0.4;
+}
+[data-slot="calendar-day"][data-today] {
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+}
+[data-slot="calendar-day"][data-range-middle] {
+  background: var(--color-brand-wash);
+}
+[data-slot="calendar-day"][data-selected] {
+  background: var(--color-brand);
+  color: var(--color-background);
+}
+[data-slot="calendar-day"][data-preview] {
+  outline: 1px dashed var(--color-brand);
+}
+[data-slot="calendar-day"][data-unavailable] {
+  color: var(--color-muted-foreground);
+  text-decoration: line-through;
+}
+[data-slot="calendar-day"]:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+```
+
+日历不额外暴露 CSS 变量，状态全部通过数据属性表达。详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+`Calendar` 常用属性：
+
+| 属性 | 类型 | 说明 |
+| --- | --- | --- |
+| `mode` | `"single" \| "multiple" \| "range"` | 选择模式，默认单选。 |
+| `value` / `defaultValue` | `CalendarValue` | 受控值与非受控初始值。 |
+| `onValueChange` | `(value, details) => void` | 选择变化时触发，可 `details.cancel()`；范围在两端都选定后触发一次。 |
+| `month` / `defaultMonth` | `string` | 第一个显示的月份，例如 `"2026-10"`。 |
+| `onMonthChange` | `(month, details) => void` | 显示月份变化时触发。 |
+| `min` / `max` | `string` | 最早与最晚可选日期。 |
+| `unavailable` | `DateMatchers` | 不可选日期，仍聚焦。 |
+| `disabled` / `readOnly` | `boolean` | 全部禁用；或可聚焦查看但不能选。 |
+| `deselectable` | `boolean` | 单选模式下再按一次清除选择。 |
+| `months` / `pageBy` | `number` / `"month" \| "page"` | 并排月数；翻月步长。 |
+| `fixedWeeks` / `showOutsideDays` | `boolean` | 固定六周；是否显示相邻月份日期。 |
+| `locale` / `weekStartsOn` | `string` / `number` | 语言与每周第一天。 |
+| `weekdayFormat` / `monthFormat` | `"long" \| "short" \| "narrow"` | 星期表头与月份名的写法。 |
+| `today` / `timeZone` | `string` | 今天的日期与判断今天所用时区。 |
+| `minDays` / `maxDays` / `allowUnavailable` | `number` / `number` / `boolean` | 范围天数上下限；范围是否可含不可选日期。 |
+| `onFocusedChange` / `onAnchorChange` | `(date, details) => void` | 焦点移到另一天前；范围起点变化前，取消则保持原状。 |
+| `controller` | `object` | `createCalendarController()` 创建的控制器。 |
+
+部件属性：`CalendarGrid` 的 `offset`（`number`）；`CalendarWeekday` 的 `index`（`number`，必填）；`CalendarDay` 的 `value`（ISO 日期，必填）与 `offset`。`CalendarWeekdays` 的子内容是接收星期索引的函数，`CalendarWeeks` 的子内容是接收单元格（含 `date`）的函数；自己写表格时要保留标记为 `hidden` 的空单元格。
+
+`CalendarDay` 的渲染函数收到 `date`、`label`、`selected`、`today`、`outside`、`disabled`、`unavailable`、`rangeStart`、`rangeEnd`、`inRange`，可以在日期下方加价格之类的内容。
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA 日期选择对话框里的网格模式：每个月是一个以月份命名的 `grid`，星期表头是以完整名称命名的 `columnheader`，每个日期是可聚焦的 `gridcell`，以完整日期命名（例如「2026年10月16日星期五」），并带 `aria-selected`、`aria-disabled`，今天另有 `aria-current="date"`。多选或范围模式的网格带 `aria-multiselectable`。
+
+网格只有一个 Tab 停靠点：可见的选中日期，否则今天，否则第一个可选日期。移到另一个月会先显示那个月再聚焦日期。
+
+| 按键 | 动作 |
+| --- | --- |
+| `ArrowLeft` / `ArrowRight` | 移动一天，跟随页面书写方向。 |
+| `ArrowUp` / `ArrowDown` | 移动一周。 |
+| `Home` / `End` | 移到本周第一天或最后一天。 |
+| `PageUp` / `PageDown` | 移动一个月，尽量保持同一天。 |
+| `Shift` + `PageUp` / `PageDown` | 移动一年。 |
+| `Enter` / `Space` | 选中聚焦的日期。 |
+| `Escape` | 取消未完成的范围。 |
+
+## 相关组件
+
+- [日期选择器](/docs/components/date-picker)：文本框加弹出日历，占用空间小。
+- [日期输入](/docs/components/date-input)：分段键入日期，不需要月历。
+- [选择器](/docs/components/select)：替换原生的月份与年份选择。
+- [控制器](/docs/concepts/controllers)：从组件树外选值、翻月与聚焦。

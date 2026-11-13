@@ -1,0 +1,154 @@
+---
+title: "标签页"
+description: "Tabs 在同一空间切换互斥面板：自动或手动激活、滑动指示器、保留面板与页内查找、链接式标签，遵循 WAI-ARIA tabs 模式。"
+sidebar:
+  order: 78
+---
+
+`Tabs`（标签页）让几个视图共用同一块空间，比如设置分区、预览与源码，每个标签打开同 value 的面板。选项只是一个要提交或保存的值时用[分段控件](/docs/components/segmented-control)；内容要纵向堆叠、逐段开合时用[折叠面板](/docs/components/accordion)。
+
+## 演示
+
+在概览、成员、设置之间切换，或聚焦标签列表后用左右方向键移动：
+
+<DocDemo name="tabs" />
+
+## 组合
+
+```text
+Tabs
+├── TabsList
+│   ├── TabsTab
+│   │   └── TabsTabIcon
+│   ├── TabsTab
+│   └── TabsIndicator
+├── TabsPanel
+└── TabsPanel
+```
+
+每对 `TabsTab` 与 `TabsPanel` 用同一个唯一 `value` 配对，列表要有无障碍名字（`aria-label`）。`defaultValue` 指定初始标签，否则选中第一个可用标签。`TabsTabIcon` 与 `TabsIndicator` 可选。
+
+## 用法
+
+```tsx
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@ui-sdk/react/tabs";
+
+function Example() {
+  return (
+    <Tabs defaultValue="account">
+      <TabsList aria-label="设置">
+        <TabsTab value="account">账户</TabsTab>
+        <TabsTab value="password">密码</TabsTab>
+      </TabsList>
+      <TabsPanel value="account">管理个人资料与联系方式。</TabsPanel>
+      <TabsPanel value="password">设置新密码与两步验证。</TabsPanel>
+    </Tabs>
+  );
+}
+```
+
+## 激活与方向
+
+`activation` 默认 `"automatic"`：方向键聚焦即选中。改为 `"manual"` 后方向键只移动焦点，`Enter` / `Space` 才选中，适合面板加载慢、切换代价高的场景。`loop`（默认 `true`）让方向键首尾环绕。`disabled` 的标签仍可聚焦但不可选中，这是 tabs 模式的要求。`orientation="vertical"` 改用上下方向键，把列表排成面板旁的一列即可。
+
+```tsx
+<Tabs defaultValue="day" activation="manual" loop={false}>
+  <TabsList aria-label="统计范围">
+    <TabsTab value="day">日</TabsTab>
+    <TabsTab value="week">周</TabsTab>
+    <TabsTab value="year">年</TabsTab>
+  </TabsList>
+  <TabsPanel value="day">今日访客 128 人。</TabsPanel>
+  <TabsPanel value="week">本周访客 1024 人。</TabsPanel>
+  <TabsPanel value="year">今年访客 48210 人。</TabsPanel>
+</Tabs>
+```
+
+## 指示器与面板动画
+
+`TabsIndicator` 测量选中标签，放进 `position: relative` 的列表里，用它的 CSS 变量画下划线或背景块，标签或列表尺寸变化时重新测量：
+
+```css
+[data-slot="tabs-list"] {
+  position: relative;
+}
+[data-slot="tabs-indicator"] {
+  position: absolute;
+  top: var(--active-tab-top);
+  left: var(--active-tab-left);
+  width: var(--active-tab-width);
+  height: var(--active-tab-height);
+  border-bottom: 2px solid currentColor;
+  transition-property: top, left, width, height;
+  transition-duration: 200ms;
+}
+[data-slot="tabs-indicator"][data-activation-direction="none"] {
+  transition: none;
+}
+```
+
+变量还有 `--active-tab-right` / `-bottom`，RTL 与纵向列表用它们定位。`data-activation-direction="none"` 表示首次放置，跳过过渡免得指示器从角落滑入。面板带 `data-starting-style` / `data-ending-style`，旧面板在退场动画期间保持挂载；根上的 `data-activation-direction`（`none` / `left` / `right` / `up` / `down`）说明这次切换在屏幕上的移动方向，把面板叠进同一个 grid 单元格即可做方向一致的滑动。
+
+## 保留面板与页内查找
+
+未选中的面板默认卸载。面板的 `keepMounted` 让它隐藏留在页面里，保住输入草稿等局部状态；根或面板的 `hiddenUntilFound` 进一步以 `hidden="until-found"` 保留，页内查找命中时选中对应标签（reason 为 `find-in-page`），面板级设置覆盖根级，且隐含 `keepMounted`。React 在服务端输出布尔 `hidden`，水合后面板才可被查找。
+
+## 受控与链接
+
+`value` 加 `onValueChange(value, details)` 接管选中标签，`null` 表示都不选。`details.reason` 有 `item-press`、`list-navigation`、`find-in-page`、`item-removed`（选中标签被移除后另选）、`imperative`；`details.cancel()` 可拦截，初始选中不触发回调。`createTabsController()`（来自 `@ui-sdk/core/tabs`）创建的控制器提供 `getValue / setValue / select / focus`。参见[控制器](/docs/concepts/controllers)。
+
+`TabsTab` 用 `render={<a href="#activity" />}` 渲染成链接后仍保留 tab 角色：方向键照常移动，修饰键点击按浏览器默认开新标签。据此可做三种 URL 方案：查询参数（服务端读参数做受控，切换时 `history.replaceState`）、URL hash（纯客户端）、路由标签（每个标签是路由链接，value 从路径推导）。
+
+## 样式与状态
+
+各部件带 `data-slot`：`tabs`、`tabs-list`、`tabs-tab`、`tabs-tab-icon`、`tabs-indicator`、`tabs-panel`。选中标签与其面板带 `data-selected`，禁用标签带 `data-disabled`，各部件带 `data-orientation` 与 `data-activation-direction`；含图标的标签带 `data-has-icon`，列表带 `data-has-icons`，`TabsTabIcon` 的 `mirror` 让指向性图标在 RTL 下翻转并带 `data-mirror`。
+
+```css
+[data-slot="tabs-tab"][data-selected] {
+  font-weight: 600;
+}
+[data-slot="tabs-tab"][data-disabled] {
+  opacity: 0.4;
+}
+[data-slot="tabs-panel"] {
+  transition: opacity 150ms;
+}
+[data-slot="tabs-panel"]:is([data-starting-style], [data-ending-style]) {
+  opacity: 0;
+}
+```
+
+详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+根 `Tabs` 的主要 props：
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `value` | `T \| null` | 选中标签的 value，传入即受控。 |
+| `defaultValue` | `T \| null` | 非受控时初始标签，默认第一个可用标签。 |
+| `onValueChange` | `(value, details) => void` | 选中要变化时运行，可拦截，挂载时不运行。 |
+| `orientation` | `"horizontal" \| "vertical"` | 方向键轴向，默认横向。 |
+| `activation` | `"automatic" \| "manual"` | 聚焦即选中，还是按键确认，默认自动。 |
+| `loop` | `boolean` | 方向键是否首尾环绕，默认 `true`。 |
+| `hiddenUntilFound` | `boolean` | 隐藏面板可被页内查找命中并选中。 |
+| `controller` | `object` | 用 `createTabsController()` 创建。 |
+
+`TabsTab` 必填 `value`，另有 `disabled`；`TabsPanel` 必填 `value`，另有 `keepMounted`、`hiddenUntilFound`；`TabsTabIcon` 有 `mirror`。
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA tabs 模式：列表是 `tablist`，标签用 `aria-controls` 指向面板，面板由标签命名。
+
+- `Tab` 进入列表时落在选中标签上，再按进入面板；`Shift+Tab` 从面板回到选中标签。
+- `ArrowLeft` / `ArrowRight` 移动并选中标签（纵向用 `ArrowUp` / `ArrowDown`），`Home` / `End` 到首末标签，默认环绕；`manual` 下方向键只移焦点，`Enter` / `Space` 选中。
+- 禁用标签可聚焦但选不中；带修饰键的方向键留给浏览器。
+- RTL 从页面或祖先的 `dir="rtl"` 读取，左右键随阅读方向互换，无需 provider。
+- 面板没有可聚焦内容时自身是 Tab 停靠点，有输入框等则不是；`manual` 模式重新进入列表时聚焦选中标签。
+
+## 相关组件
+
+- [分段控件](/docs/components/segmented-control)：只选值、不带面板的单选控件。
+- [折叠面板](/docs/components/accordion)：纵向堆叠、逐段开合的内容分区。
+- [导航菜单](/docs/components/navigation-menu)：站点级的分组链接导航。

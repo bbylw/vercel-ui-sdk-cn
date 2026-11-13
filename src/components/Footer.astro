@@ -1,0 +1,85 @@
+---
+import Logo from "./Logo.astro";
+import Icon from "@cloudflare/nimbus-docs/components/Icon.astro";
+import { config } from "virtual:nimbus/config";
+import { withBase } from "@cloudflare/nimbus-docs/runtime";
+
+const href = (p: string) => withBase(p, import.meta.env.BASE_URL);
+
+const columns = [
+	{
+		title: "文档",
+		links: [
+			{ label: "快速开始", href: href("/docs/getting-started/installation") },
+			{ label: "核心概念", href: href("/docs/concepts/parts-and-composition") },
+			{ label: "组件总览", href: href("/docs/components") },
+			{ label: "智能体", href: href("/docs/agents") },
+		],
+	},
+	{
+		title: "常用组件",
+		links: [
+			{ label: "选择器 Select", href: href("/docs/components/select") },
+			{ label: "对话框 Dialog", href: href("/docs/components/dialog") },
+			{ label: "菜单 Menu", href: href("/docs/components/menu") },
+			{ label: "组合框 Combobox", href: href("/docs/components/combobox") },
+			{ label: "轻提示 Toast", href: href("/docs/components/toast") },
+		],
+	},
+	{
+		title: "资源",
+		links: [
+			{ label: "框架适配", href: href("/docs/frameworks") },
+			{ label: "行为与自定义组件", href: href("/docs/core") },
+			{ label: "第一个组件", href: href("/docs/getting-started/first-component") },
+			{ label: "GitHub", href: config.github ?? "https://github.com/vercel-labs/ui", external: true },
+		],
+	},
+];
+---
+
+<footer class="landing-section relative border-t border-border">
+	<div class="mx-auto max-w-7xl px-6 py-14 lg:px-8">
+		<div class="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
+			<div class="flex flex-col gap-3">
+				<a href={href("/")} class="flex items-center gap-2 text-foreground no-underline transition-opacity hover:opacity-70">
+					<Logo class="h-5 w-5 text-brand" />
+					<span class="font-semibold tracking-tight">{config.title}</span>
+				</a>
+				<p class="max-w-xs text-sm leading-relaxed text-muted-foreground">
+					界面行为，而非样式。键盘导航、焦点、选择与 ARIA，一次编写，五个框架通用。
+				</p>
+			</div>
+			{columns.map((col) => (
+				<nav aria-label={col.title} class="flex flex-col gap-2.5">
+					<h2 class="text-[0.8125rem] font-semibold text-foreground">{col.title}</h2>
+					{col.links.map((link) => (
+						<a
+							href={link.href}
+							target={link.external ? "_blank" : undefined}
+							rel={link.external ? "noopener" : undefined}
+							class="w-fit text-sm text-muted-foreground no-underline underline-offset-4 transition-colors hover:text-foreground hover:underline"
+						>
+							{link.label}
+						</a>
+					))}
+				</nav>
+			))}
+		</div>
+		<div class="mt-12 flex flex-col items-start justify-between gap-3 border-t border-border pt-6 sm:flex-row sm:items-center">
+			<p class="font-mono text-xs text-muted-foreground">界面行为，而非样式。</p>
+			{config.github && (
+				<a
+					href={config.github}
+					target="_blank"
+					rel="noopener"
+					aria-label="GitHub"
+					class="flex items-center gap-2 text-xs text-muted-foreground no-underline transition-colors hover:text-foreground"
+				>
+					<Icon name="ph:github-logo" class="h-4 w-4" />
+					vercel-labs/ui
+				</a>
+			)}
+		</div>
+	</div>
+</footer>

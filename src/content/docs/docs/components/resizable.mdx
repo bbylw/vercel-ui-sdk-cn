@@ -1,0 +1,156 @@
+---
+title: "可调整大小"
+description: "Resizable 用拖拽手柄和键盘调整面板布局：百分比与像素尺寸、折叠面板、布局持久化与控制器，遵循 window splitter 模式。"
+sidebar:
+  order: 75
+---
+
+`Resizable`（可调整大小）让用户自己分配布局里各窗格的尺寸，比如文件列表旁边的编辑器：拖动面板之间的手柄，或聚焦手柄后用方向键。适合 IDE 式工作台、聊天列表加消息区、大纲加正文这类分栏界面。手柄遵循 WAI-ARIA window splitter 模式，组可以嵌套，比如编辑器下方再挂一个终端。
+
+## 组合
+
+```text
+Resizable
+├── ResizablePanel
+├── ResizableHandle
+└── ResizablePanel
+```
+
+在要调整的面板之间放一个 `ResizableHandle`，并用 `aria-label` 命名，如「调整文件列表宽度」。组把面板排成一行（`orientation="vertical"` 时排成一列），记得给组一个尺寸；每个面板的大小是共享空间的百分比。手柄里可以放任何东西，比如提示可拖拽的握把纹；手柄本身可以是一条细线，它的命中区域无需样式就至少有 10 像素宽（触屏 24），以手柄为中心。
+
+## 用法
+
+```tsx
+import {
+  Resizable,
+  ResizableHandle,
+  ResizablePanel,
+} from "@ui-sdk/react/resizable";
+
+function Example() {
+  return (
+    <Resizable>
+      <ResizablePanel defaultSize={30} minSize={20}>文件</ResizablePanel>
+      <ResizableHandle aria-label="调整文件列表宽度" />
+      <ResizablePanel>编辑器</ResizablePanel>
+    </Resizable>
+  );
+}
+```
+
+没写 `defaultSize` 的面板平分剩余空间，这里是 70%。
+
+## 尺寸与单位
+
+`defaultSize` / `minSize` / `maxSize` 接受百分比数字（如 `30`）或带 `%`、`px`、`rem` 的字符串（如 `"240px"`）。像素与 rem 边界在组尺寸变化时保持：`minSize="160px"` 的导航栏不会随窗口变窄而低于 160px，由此引发的调整以 `resize` 为 reason 报告。根上也可以用 `defaultLayout={[25, 35, 40]}` 一次给出各面板初始百分比；服务端渲染的是各面板自己的 `defaultSize`，SSR 场景优先用它。
+
+## 折叠面板
+
+`collapsible` 让面板可以压到 `minSize` 以下、直达 `collapsedSize`（默认 0）：拖过两者中点即折叠，往回拖过同一点以最小尺寸打开；手柄上的 `Enter` 或双击折叠 / 恢复，`Enter` 恢复折叠前的尺寸。折叠的面板带 `data-collapsed`；折到 0 时其内容离开 Tab 顺序与无障碍树。
+
+```tsx
+<Resizable>
+  <ResizablePanel defaultSize={30} minSize={25} collapsible collapsedSize="48px">
+    侧边栏
+  </ResizablePanel>
+  <ResizableHandle aria-label="开合侧边栏" />
+  <ResizablePanel>主内容</ResizablePanel>
+</Resizable>
+```
+
+## 布局持久化
+
+`autoSaveId` 在交互结束时把布局存进 `localStorage`，下次挂载时恢复；服务端标记仍从默认尺寸开始。给面板写 `id`，保存的布局才能扛住页面其他地方的变化。`storage` 换成任何带 `getItem` / `setItem` 的对象即可改存别处，类型 `ResizableStorage` 同样来自 `@ui-sdk/react/resizable`：
+
+```tsx
+const session: ResizableStorage = {
+  getItem: (key) => sessionStorage.getItem(key),
+  setItem: (key, value) => sessionStorage.setItem(key, value),
+};
+
+<Resizable autoSaveId="workspace-layout" storage={session}>
+  <ResizablePanel id="sidebar" defaultSize={30} minSize={20}>会话列表</ResizablePanel>
+  <ResizableHandle aria-label="调整会话列表宽度" />
+  <ResizablePanel id="chat">消息</ResizablePanel>
+</Resizable>;
+```
+
+自己管理存储时，在 `onLayoutCommit` 里保存：它只在一次交互结束（指针抬起、按键松开、面板折叠）时运行一次。
+
+## 受控与控制器
+
+`layout`（百分比数组）加 `onLayoutChange(layout, details)` 接管布局：拖拽的每一帧、每次按键都会运行，`details.cancel()` 保住原布局。`details.reason` 有 `drag`、`step-key`、`collapse`、`resize`、`imperative`。
+
+```tsx
+const [layout, setLayout] = React.useState([25, 75]);
+
+<Resizable
+  layout={layout}
+  onLayoutChange={(next) => setLayout(next)}
+  onLayoutCommit={(next) => localStorage.setItem("layout", JSON.stringify(next))}
+>
+  <ResizablePanel>目录</ResizablePanel>
+  <ResizableHandle aria-label="调整目录宽度" />
+  <ResizablePanel>正文</ResizablePanel>
+</Resizable>;
+```
+
+`createResizableController()` 创建的控制器传给 `controller`，提供 `getLayout / setLayout / collapse / expand / resize / isCollapsed`，面板按 `id` 或索引定位，如 `resize("sidebar", "240px")`，差额由相邻面板让出或吸收。参见[控制器](/docs/concepts/controllers)。
+
+## 样式与状态
+
+组件只带布局必需的样式：组是 flex 行或列，面板以 flex basis 取尺寸，手柄不收缩并带 `touch-action: none`。各部件带 `data-slot`：`resizable`、`resizable-panel`、`resizable-handle`，都带 `data-orientation`；根与手柄带 `data-disabled` / `data-dragging`，面板带 `data-collapsed`，手柄另有 `data-hovering`（指针在手柄或其命中区域内）。面板上的 `--resizable-panel-size` 每帧写入百分比，不触发重渲染。
+
+```css
+[data-slot="resizable"] {
+  height: 320px;
+}
+[data-slot="resizable-handle"] {
+  width: 4px;
+  background: rgb(0 0 0 / 10%);
+}
+[data-slot="resizable-handle"][data-hovering],
+[data-slot="resizable-handle"][data-dragging] {
+  background: rgb(0 0 0 / 30%);
+}
+[data-slot="resizable-handle"]:focus-visible {
+  outline: 2px solid currentColor;
+}
+```
+
+拖拽期间轴向光标显示在整个页面上，到达边界时只指向还能移动的方向。纵向组给手柄高度而不是宽度。
+
+## API
+
+根 `Resizable` 的主要 props：
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `layout` | `number[]` | 各面板百分比，按面板顺序，传入即受控。 |
+| `defaultLayout` | `number[]` | 非受控时的初始布局。 |
+| `onLayoutChange` | `(layout, details) => void` | 布局每帧变化时运行，可拦截。 |
+| `onLayoutCommit` | `(layout, details) => void` | 一次交互结束时运行一次，适合保存。 |
+| `orientation` | `"horizontal" \| "vertical"` | 面板排列方向，默认横向。 |
+| `disabled` | `boolean` | 禁用手柄，离开 Tab 顺序。 |
+| `step` / `largeStep` | `number` | 方向键 / Shift+方向键的移动百分比，默认 1 与 10。 |
+| `autoSaveId` | `string` | 布局持久化的存储键。 |
+| `storage` | `ResizableStorage` | 自定义存储，需 `getItem` / `setItem`。 |
+| `controller` | `object` | 用 `createResizableController()` 创建。 |
+
+`ResizablePanel` 有 `id`、`defaultSize`、`minSize`、`maxSize`、`collapsible`、`collapsedSize`；`ResizableHandle` 有 `disabled`。
+
+## 键盘与无障碍
+
+手柄遵循 WAI-ARIA window splitter 模式：每个手柄是可聚焦的 `separator`，`aria-valuenow` 是它前面板的尺寸，`aria-valuemin` / `aria-valuemax` 取面板边界允许的范围，`aria-controls` 指向该面板，`aria-orientation` 与组的轴向垂直（手柄横跨分组方向）。
+
+- 沿组轴向的方向键按 `step` 移动手柄，加 `Shift` 按 `largeStep`；跨轴方向键不动作。
+- `Home` / `End` 移到面板边界允许的尽头；可折叠面板用 `Home` 直接折叠。
+- `Enter` 折叠或恢复旁边的可折叠面板；步进越过最小值一格也会折叠。
+- 面板到达最小值后，把多余的移动量传给下一个面板。
+- 禁用的手柄离开 Tab 顺序，也挡住越过它的拖拽。
+
+## 相关组件
+
+- [树形视图](/docs/components/tree)：放进侧栏面板的文件树。
+- [滚动区域](/docs/components/scroll-area)：面板内容溢出时的自定义滚动条。
+- [控制器](/docs/concepts/controllers)：从组件树外调整布局。

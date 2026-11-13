@@ -1,0 +1,152 @@
+---
+title: "导航菜单"
+description: "NavigationMenu 把站点链接分组进触发器展开的面板：悬停打开、共享视口、路由链接与指示器，遵循 disclosure 导航模式。"
+sidebar:
+  order: 73
+---
+
+`NavigationMenu`（导航菜单）把站点主导航分成一排触发器，每个触发器展开一组普通链接的面板，适合官网顶栏的「产品」「资源」这类分组导航。它遵循 disclosure 导航模式，面板里是链接而不是动作；要一组可执行的动作请用菜单（Menu）。弹层就地渲染进浏览器顶层（top layer），不被祖先的 `overflow` 裁剪，详见[弹出层](/docs/concepts/popups)。
+
+## 组合
+
+```text
+NavigationMenu
+├── NavigationMenuList
+│   ├── NavigationMenuItem
+│   │   ├── NavigationMenuTrigger
+│   │   └── NavigationMenuContent
+│   │       ├── NavigationMenuLink
+│   │       └── NavigationMenuLink
+│   └── NavigationMenuItem
+│       ├── NavigationMenuTrigger
+│       └── NavigationMenuContent
+├── NavigationMenuViewport
+└── NavigationMenuIndicator
+```
+
+`NavigationMenuViewport` 是一个共享弹层，容纳当前打开项的内容，在项之间切换时随内容改变尺寸并移动。不写视口时，每个 `NavigationMenuContent` 各自作为独立弹层打开。`NavigationMenuItem` 的 `value` 省略时自动生成。
+
+## 用法
+
+```tsx
+import {
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+  NavigationMenuViewport,
+} from "@ui-sdk/react/navigation-menu";
+
+function Example() {
+  return (
+    <NavigationMenu aria-label="主导航">
+      <NavigationMenuList>
+        <NavigationMenuItem value="docs">
+          <NavigationMenuTrigger>文档</NavigationMenuTrigger>
+          <NavigationMenuContent>
+            <NavigationMenuLink href="/docs/components">组件总览</NavigationMenuLink>
+            <NavigationMenuLink href="/docs/getting-started/installation">安装</NavigationMenuLink>
+          </NavigationMenuContent>
+        </NavigationMenuItem>
+        <NavigationMenuItem value="concepts">
+          <NavigationMenuTrigger>概念</NavigationMenuTrigger>
+          <NavigationMenuContent>
+            <NavigationMenuLink href="/docs/concepts/parts-and-composition">部件与组合</NavigationMenuLink>
+            <NavigationMenuLink href="/docs/concepts/controllers">控制器</NavigationMenuLink>
+          </NavigationMenuContent>
+        </NavigationMenuItem>
+      </NavigationMenuList>
+      <NavigationMenuViewport />
+    </NavigationMenu>
+  );
+}
+```
+
+## 悬停与点击
+
+指针停在触发器上即打开面板，`delay` 与 `closeDelay` 分别是打开前与关闭前的等待毫秒数，默认各 50。面板打开时移到另一个触发器立即切换；指针可以穿过触发器与面板之间的空隙而不关闭。`openOnHover={false}` 变成纯点击菜单。`closeOnSelect`（默认 `true`）决定按下链接后是否关闭，链接自己的 `closeOnSelect` 优先；带修饰键的点击（新标签页打开）从不关闭。触屏上点按触发器开合面板。
+
+## 共享视口与保留内容
+
+视口和内容的定位 props 相同：`side`、`align`、`sideOffset`、`alignOffset`、`collisionPadding`、`anchor`（元素、选择器、`{ x, y }` 或任何带 `getBoundingClientRect()` 的对象），空间不足时自动翻转、平移。内容的 `keepMounted` 让关闭的面板隐藏留在自己的项里，服务端 HTML 与爬虫都能拿到，打开时才移入视口；`hiddenUntilFound` 隐含 `keepMounted`，页内查找命中时展开对应项。
+
+<Aside type="caution" title="内边距放在内容内部">
+视口尺寸来自内容的测量值。给内容加 padding 时请放在它内部的包裹元素上，不要放在内容本身，否则保留的隐藏面板会撑出多余空间。
+</Aside>
+
+## 链接与当前页
+
+`NavigationMenuLink` 渲染锚点，用 `render={<Link to="/pricing" />}` 换成路由链接；路由拦截了默认跳转也会照常关闭菜单。`current` 标记当前页，输出 `aria-current="page"` 与 `data-current`。`NavigationMenuLinkIcon` 放在链接文字前，屏幕阅读器跳过它；指向性图标（箭头等）加 `mirror` 在 RTL 下水平翻转。纯图标链接要自带 `aria-label`。列表带 `data-has-icons`、链接带 `data-has-icon`，便于无图标项对齐。
+
+## 受控与指示器
+
+`value` 加 `onValueChange(value, details)` 接管打开项，`null` 表示全部关闭。`details.reason` 有 `trigger-hover`、`trigger-press`、`escape-key`、`outside-press`、`focus-out`、`link-press`、`find-in-page`、`parent-close`、`imperative` 等，`details.cancel()` 可拦截。`onOpenChangeComplete(open)` 在开合动画结束后运行，项之间切换不算开合。`createNavigationMenuController()` 创建的控制器提供 `getValue / setValue / isOpen / close / focus`。
+
+`NavigationMenuIndicator` 是可选的装饰条：面板打开时停在触发器下方，全部关闭时停在当前页链接下方，屏幕阅读器跳过它。位置由 `--active-item-left / right / top / bottom / width / height` 给出，配合 `data-visible` 控制显隐。
+
+## 样式与状态
+
+各部件带 `data-slot`：`navigation-menu`、`navigation-menu-list`、`navigation-menu-item`、`navigation-menu-trigger`、`navigation-menu-content`、`navigation-menu-link`、`navigation-menu-link-icon`、`navigation-menu-viewport`、`navigation-menu-indicator`。项、触发器、内容、视口带 `data-open` / `data-closed`；触发器禁用时带 `data-disabled`（原生按钮不可聚焦）；内容与视口带 `data-starting-style` / `data-ending-style` / `data-side` / `data-align`，内容另有 `data-motion`（`from-start` / `from-end` / `to-start` / `to-end`，逻辑方向，RTL 下 end 在左）；根带 `data-orientation`，嵌套菜单带 `data-nested`。
+
+视口用 `--viewport-width` / `--viewport-height`（内容尺寸加视口边框）定尺寸并裁剪，内容绝对定位在角落、自带宽度：
+
+```css
+[data-slot="navigation-menu-viewport"] {
+  width: var(--viewport-width);
+  height: var(--viewport-height);
+  overflow: hidden;
+  transition: width 200ms, height 200ms, left 200ms, top 200ms, opacity 200ms;
+}
+[data-slot="navigation-menu-viewport"] > [data-slot="navigation-menu-content"] {
+  position: absolute;
+  top: 0;
+  inset-inline-start: 0;
+  width: max-content;
+}
+[data-slot="navigation-menu-content"][data-motion="from-end"][data-starting-style],
+[data-slot="navigation-menu-content"][data-motion="to-end"][data-ending-style] {
+  translate: 48px 0;
+}
+[data-slot="navigation-menu-trigger"][data-open] {
+  background: rgb(0 0 0 / 6%);
+}
+```
+
+`--available-height` 等定位变量不继承，长面板要限高时先在弹层上复制成自己的变量再读取。RTL 下用 `:dir(rtl)` 反转平移方向。详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+根 `NavigationMenu` 的主要 props：
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `value` | `T \| null` | 打开项的 value，传入即受控，`null` 关闭全部。 |
+| `defaultValue` | `T \| null` | 非受控时初始打开的项。 |
+| `onValueChange` | `(value, details) => void` | 打开项要变化时运行，可拦截。 |
+| `onOpenChangeComplete` | `(open) => void` | 开合动画结束后运行，切换项不触发。 |
+| `delay` / `closeDelay` | `number` | 悬停打开 / 离开关闭的等待毫秒数，默认各 50。 |
+| `openOnHover` | `boolean` | 悬停是否打开，默认 `true`。 |
+| `closeOnSelect` | `boolean` | 按下链接后是否关闭，默认 `true`。 |
+| `orientation` | `"horizontal" \| "vertical"` | 方向键轴向与面板打开侧，默认横向。 |
+| `controller` | `object` | 用 `createNavigationMenuController()` 创建。 |
+| `container` | `DocumentFragment \| Element \| null` | 弹层改渲染进指定容器，如 iframe 或 shadow root。 |
+
+`NavigationMenuContent` 另有 `keepMounted`、`hiddenUntilFound` 与定位 props；`NavigationMenuLink` 有 `current`、`closeOnSelect`；`NavigationMenuTrigger` 有 `disabled`。
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA disclosure 导航模式：根是带 `aria-label` 的导航地标，触发器是按钮，面板里是普通链接。嵌套菜单不产生第二个地标。
+
+- `Tab` 按文档顺序经过触发器与顶层链接；`Enter` / `Space` 打开面板且焦点留在触发器，再 `Tab` 进入面板。
+- `Tab` 越过面板最后一个链接进入下一项，`Shift+Tab` 从第一个链接回到触发器。
+- `Escape` 关闭面板并把焦点还给触发器；焦点离开导航也会关闭。嵌套时先关内层。
+- `ArrowLeft` / `ArrowRight` 在顶层项间移动（纵向菜单用 `ArrowUp` / `ArrowDown`），`Home` / `End` 到首末项，不环绕；`ArrowDown` 打开面板并聚焦第一个链接。
+- 面板内 `ArrowUp` / `ArrowDown` 或 `ArrowLeft` / `ArrowRight` 在链接间移动；带修饰键的组合留给浏览器。
+
+## 相关组件
+
+- [标签页](/docs/components/tabs)：同一页面内切换互斥视图。
+- [弹出层](/docs/concepts/popups)：顶层渲染、定位与碰撞处理的通用机制。
+- [部件与组合](/docs/concepts/parts-and-composition)：render 替换路由链接等组合手法。

@@ -1,0 +1,157 @@
+---
+title: "时间输入"
+description: "TimeInput 按时、分、秒分段输入一天中的时间：12 或 24 小时制、范围校验、提交 24 小时制字符串。"
+sidebar:
+  order: 41
+---
+
+`TimeInput`（时间输入）用于一天中的某个时刻，例如会议时间或营业开始时间。它把小时、分钟（以及 12 小时制下的上午、下午）分成独立的段，逐段键入或步进，用法与[日期输入](/docs/components/date-input)一致。需要连同日期一起选时用[日期选择器](/docs/components/date-picker)。
+
+## 组合
+
+```text
+TimeInput
+├── TimeInputSegment
+└── TimeInputSegment
+```
+
+`TimeInput` 渲染一个分组，按当前地区的顺序为时间的每个部分渲染一个 `TimeInputSegment`，并在它们之间渲染分隔文本。通常只写根部件即可，段由它生成。
+
+## 用法
+
+```tsx
+import { Field, FieldLabel } from "@ui-sdk/react/field";
+import { TimeInput } from "@ui-sdk/react/time-input";
+
+<Field>
+  <FieldLabel>会议时间</FieldLabel>
+  <TimeInput defaultValue="09:30" />
+</Field>;
+```
+
+值始终是 24 小时制字符串，例如 `"14:30"`，与原生 time 输入一致，界面上显示哪种时钟都一样。点小时段键入 `230` 会自动跳段，再按 `P` 切到下午；在某一段上按 `ArrowUp` / `ArrowDown` 即可步进。
+
+## 时钟制与秒
+
+界面默认跟随地区的时钟习惯。`hourCycle` 传 `12` 或 `24` 可强制指定，`granularity` 决定显示到哪个单位：`"second"` 增加秒段，`"hour"` 只显示小时。
+
+```tsx
+<Field>
+  <FieldLabel>12 小时制</FieldLabel>
+  <TimeInput hourCycle={12} defaultValue="18:45" />
+</Field>
+
+<Field>
+  <FieldLabel>带秒</FieldLabel>
+  <TimeInput hourCycle={24} granularity="second" defaultValue="18:45:30" />
+</Field>
+```
+
+三种写法显示不同，但提交的都是 24 小时制的值；带秒时值形如 `"18:45:30"`。`locale` 决定分隔符与时钟制，默认跟随页面语言。
+
+## 范围与校验
+
+`min` 与 `max` 接收 `"09:00"` 这样的时间字符串。超出范围的时间视为无效：根与段都会带上 `data-invalid`，所在表单不会提交。
+
+```tsx
+<Field>
+  <FieldLabel>预约时间</FieldLabel>
+  <TimeInput name="slot" min="09:00" max="17:30" required />
+  <FieldError>请选择 09:00 到 17:30 之间的时间。</FieldError>
+</Field>
+```
+
+只填了一部分时值是 `null`，此时也不能提交；`required` 则要求必须有时间。放进[字段](/docs/components/field)里，错误信息会被关联到输入。参见[表单](/docs/concepts/forms)。
+
+## 受控与控制器
+
+```tsx
+const [value, setValue] = React.useState<string | null>("09:30");
+
+<TimeInput value={value} onValueChange={(next) => setValue(next)} />;
+```
+
+`onValueChange` 在每个段都有内容时报告完整时间，某一段被清空时再报告 `null`，`details.cancel()` 保留原值。`details.reason` 区分 `input-change`、`step-key`、`paste`、`reset`、`restore` 与 `imperative`，参见[状态与事件](/docs/concepts/state-and-events)。
+
+用 `createTimeInputController()` 创建控制器传给根，可在组件树外调用：
+
+- `getValue()`：当前时间，空或只填了一部分时是 `null`。
+- `setValue(value, options?)`：设置时间，无法显示的值或被取消时返回 `false`。
+- `clear(options?)`：清空所有段。
+- `focus(segment?)`：聚焦某一段（如 `"hour"`），默认第一段。
+
+参见[控制器](/docs/concepts/controllers)。表单方面，隐藏输入按 `name` 提交时间，`form` 可关联页面中其他表单的 id，重置回到 `defaultValue`。
+
+## 样式与状态
+
+把根当作字段的盒子来画，段排在里面。每个段都用 `data-type` 标明单位，据此调整宽度或弱化分隔符。
+
+- 根 `time-input`：`data-disabled`、`data-readonly`、`data-required`、`data-invalid`（早于 `min` 或晚于 `max`）、`data-empty`（所有段都空）。
+- 段 `time-input-segment`：`data-type` 取 `hour`、`minute`、`second`、`dayPeriod`、`literal`；另有 `data-disabled`、`data-readonly`、`data-required`、`data-invalid`、`data-empty`（该段为空，显示占位符）。
+
+```css
+[data-slot="time-input"] {
+  display: inline-flex;
+  align-items: baseline;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+[data-slot="time-input"][data-invalid] {
+  border-color: var(--color-danger);
+}
+[data-slot="time-input-segment"][data-type="literal"] {
+  color: var(--color-muted-foreground);
+}
+[data-slot="time-input-segment"][data-empty] {
+  color: var(--color-muted-foreground);
+}
+[data-slot="time-input-segment"][data-type="dayPeriod"] {
+  min-inline-size: 3ch;
+}
+```
+
+上午、下午那一段的 `data-type` 是 `dayPeriod`。根的状态里还有按地区顺序排列的 `segments`，包含段之间的文本。详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+`TimeInput` 常用属性：
+
+| 属性 | 类型 | 说明 |
+| --- | --- | --- |
+| `value` | `string \| null` | 受控值，如 `"14:30"` 或 `"14:30:15"`。 |
+| `defaultValue` | `string \| null` | 非受控初始值，重置回到它。 |
+| `onValueChange` | `(value, details) => void` | 值将要变化时触发，清空时报 `null`，可取消。 |
+| `granularity` | `"hour" \| "minute" \| "second"` | 显示到的最小单位。 |
+| `hourCycle` | `12 \| 24` | 强制 12 或 24 小时制，默认跟随地区。 |
+| `min` / `max` | `string` | 最早与最晚时间，越界即无效。 |
+| `locale` | `string` | 分隔符与时钟制所用语言，默认跟随页面。 |
+| `name` / `form` | `string` | 提交字段名与关联表单 id。 |
+| `disabled` / `readOnly` / `required` | `boolean` | 禁用、只读、必填。 |
+| `controller` | `object` | `createTimeInputController()` 创建的控制器。 |
+
+## 键盘与无障碍
+
+根是一个分组，由字段标签或 `aria-label` 命名。每个段是一个 spinbutton，名字是它的单位（如「小时」「上午/下午」），并带有当前值、范围与文本；空段读作「空」，段之间的分隔文本对屏幕阅读器隐藏。段是真正的输入元素，手机会弹出数字键盘，脚本执行前也能键入。
+
+| 按键 | 行为 |
+| --- | --- |
+| `0` 到 `9` | 填充当前段，然后移到下一段；无法再延长的数字立即跳段。 |
+| `ArrowUp` / `ArrowDown` | 该段步进 1，首尾循环。 |
+| `PageUp` / `PageDown` | 更大步长，分钟为 15。 |
+| `Home` / `End` | 该段的首个或末个取值。 |
+| `ArrowLeft` / `ArrowRight` | 移到前一段或后一段。 |
+| `Backspace` | 删掉一位数字，再清空该段，然后回到前一段。 |
+| `Delete` | 清空该段。 |
+| `A` / `P` | 12 小时制下选择上午或下午。 |
+| `Enter` | 用已键入的内容提交表单。 |
+| `Tab` / `Shift` + `Tab` | 依次经过各段，然后离开输入。 |
+
+键入分隔符会跳到下一段；粘贴一整段时间会填满所有段。从右到左的页面里，段仍按地区顺序排列，左右方向键跟随屏幕上的顺序。
+
+## 相关组件
+
+- [日期输入](/docs/components/date-input)：同一套分段模型，输入日期或日期加时间。
+- [日期选择器](/docs/components/date-picker)：需要日历弹出层时用它。
+- [字段](/docs/components/field)：标签、说明与校验信息。
+- [表单](/docs/concepts/forms)：提交与重置。

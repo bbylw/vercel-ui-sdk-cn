@@ -1,0 +1,165 @@
+---
+title: "分页"
+description: "Pagination 用按钮、链接或路由链接翻页：页码范围、省略号、受控页码与控制器，JS 加载前也能导航。"
+sidebar:
+  order: 74
+---
+
+`Pagination`（分页）为长列表提供翻页导航：一排页码加上一页 / 下一页等步进按钮，页码多时自动折叠出省略号。适合文章列表、搜索结果、表格数据。它可以渲染成按钮，也可以渲染成真正的锚点或路由链接。翻页展示幻灯片用[轮播](/docs/components/carousel)。
+
+## 组合
+
+```text
+Pagination
+└── PaginationList
+    ├── PaginationItem
+    │   └── PaginationPrevious
+    ├── PaginationItem
+    │   └── PaginationLink
+    ├── PaginationItem
+    │   └── PaginationEllipsis
+    └── PaginationItem
+        └── PaginationNext
+```
+
+根上用 `aria-label` 命名导航。`PaginationList` 的 children 写成 `({ items }) => ...`，`items` 是页码数字与 `"ellipsis-start"` / `"ellipsis-end"` 字符串的混合数组：数字渲染 `PaginationLink`，字符串渲染 `PaginationEllipsis`。用 item 本身作 key，页码范围移动时链接才能保住自己的元素与焦点。另有 `PaginationFirst` / `PaginationLast` 跳到首末页。
+
+## 用法
+
+```tsx
+import {
+  Pagination,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationList,
+  PaginationNext,
+  PaginationPrevious,
+} from "@ui-sdk/react/pagination";
+
+function Example() {
+  return (
+    <Pagination aria-label="分页" pageCount={10}>
+      <PaginationList>
+        {({ items }) => (
+          <>
+            <PaginationItem>
+              <PaginationPrevious>上一页</PaginationPrevious>
+            </PaginationItem>
+            {items.map((item) => (
+              <PaginationItem key={item}>
+                {typeof item === "number" ? <PaginationLink page={item} /> : <PaginationEllipsis />}
+              </PaginationItem>
+            ))}
+            <PaginationItem>
+              <PaginationNext>下一页</PaginationNext>
+            </PaginationItem>
+          </>
+        )}
+      </PaginationList>
+    </Pagination>
+  );
+}
+```
+
+`PaginationLink` 默认显示自己的页码，当前页带 `aria-current="page"` 与 `data-current`；`PaginationEllipsis` 显示「…」并对屏幕阅读器隐藏。步进按钮要有文字或 `aria-label`。
+
+## 页码范围
+
+`siblings` 是当前页两侧各显示几页（默认 1），`boundaries` 是两端固定显示几页（默认 1）。靠近首尾时窗口整体滑动而不是缩短，列表长度稳定，指针下的条目不会跳动；只差一页的空隙直接显示那页而不出省略号。不知道页数时改传 `total`（总条数）与 `pageSize`（每页条数，默认 10），至少算出一页；页码超出末尾（比如总数变少后）按末页处理。
+
+页数很少时也可以不用 `items`，直接写死一排 `PaginationLink`。要在服务端或自定义标记里算同一套范围，用纯函数 `paginationRange`（Server Component 中从 `@ui-sdk/core/pagination` 导入）：
+
+```tsx
+import { paginationRange } from "@ui-sdk/core/pagination";
+
+const items = paginationRange({ page: 10, pageCount: 20, siblings: 2, boundaries: 1 });
+```
+
+## 链接与路由
+
+传 `getHref={(page) => url}` 后页码与步进都渲染成锚点：服务端输出的链接在 JavaScript 加载前就能导航，修饰键点击、中键点击交给浏览器开新标签，不改分页状态。到头的步进链接失去 `href` 并离开 Tab 顺序，但已持有焦点时焦点保留。客户端路由把 `page` 从 URL 读出来做受控，再用 `render` 换上路由链接，它会收到部件 props 和来自 `getHref` 的 `href`。分页的点击处理器先运行：变更被取消或步进到头时调用 `preventDefault()`，路由就不会跳转。
+
+```tsx
+const page = Number(searchParams.get("page") ?? 1);
+
+<Pagination aria-label="文章列表" pageCount={10} page={page} getHref={(p) => `?page=${p}`}>
+  <PaginationList>
+    {({ items }) =>
+      items.map((item) => (
+        <PaginationItem key={item}>
+          {typeof item === "number" ? <PaginationLink page={item} render={<Link />} /> : <PaginationEllipsis />}
+        </PaginationItem>
+      ))
+    }
+  </PaginationList>
+</Pagination>;
+```
+
+## 受控与控制器
+
+`page` 加 `onPageChange(page, details)` 接管页码，`defaultPage` 是非受控初始页（默认 1）。`details.reason` 有 `item-press`、`previous-press`、`next-press`、`first-press`、`last-press`、`imperative`；`details.cancel()` 保住当前页，同时阻止链接导航，适合表单有未保存改动时拦截。
+
+```tsx
+const [page, setPage] = React.useState(1);
+
+<Pagination aria-label="文章列表" pageCount={5} page={page} onPageChange={setPage}>
+  <PaginationList>
+    {[1, 2, 3, 4, 5].map((n) => (
+      <PaginationItem key={n}>
+        <PaginationLink page={n} />
+      </PaginationItem>
+    ))}
+  </PaginationList>
+</Pagination>;
+```
+
+`createPaginationController()` 创建的控制器传给 `controller`，可在页面任何地方调用 `getPage / getPageCount / setPage / next / previous / first / last`，写方法被取消或无处可去时返回 `false`。参见[控制器](/docs/concepts/controllers)。
+
+## 样式与状态
+
+各部件带 `data-slot`：`pagination`、`pagination-list`、`pagination-item`、`pagination-link`、`pagination-ellipsis`、`pagination-previous`、`pagination-next`、`pagination-first`、`pagination-last`。状态属性只有两个：当前页链接的 `data-current`，到头步进的 `data-disabled`（伴随 `aria-disabled`）；根、列表、项、省略号没有状态属性。
+
+```css
+[data-slot="pagination-link"][data-current] {
+  background: rgb(0 0 0 / 8%);
+  font-weight: 600;
+}
+[data-slot="pagination-previous"][data-disabled],
+[data-slot="pagination-next"][data-disabled] {
+  opacity: 0.4;
+}
+```
+
+## API
+
+根 `Pagination` 的主要 props：
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `page` | `number` | 当前页，从 1 开始，传入即受控。 |
+| `defaultPage` | `number` | 非受控时的初始页，默认 1。 |
+| `onPageChange` | `(page, details) => void` | 页码要变化时运行，`details.cancel()` 可拦截。 |
+| `pageCount` | `number` | 总页数，与 `total` + `pageSize` 二选一。 |
+| `total` / `pageSize` | `number` | 总条数与每页条数（默认 10），代替 `pageCount`。 |
+| `siblings` | `number` | 当前页两侧各显示的页数，默认 1。 |
+| `boundaries` | `number` | 两端固定显示的页数，默认 1。 |
+| `getHref` | `(page) => string` | 页码对应的 URL，传入后部件渲染为链接。 |
+| `controller` | `object` | 用 `createPaginationController()` 创建。 |
+
+`PaginationLink` 必填 `page`；其余部件没有专属 props。
+
+## 键盘与无障碍
+
+分页没有专门的 WAI-ARIA 模式，按通行做法实现：带 `aria-label` 的 `navigation` 地标，内部是链接或按钮列表，当前页带 `aria-current="page"`。列表去掉圆点样式后仍保留 `list` 角色（否则 Safari 会丢弃）。
+
+- `Enter` / `Space` 激活聚焦的页码或步进。
+- 步进渲染为按钮时到头仍可聚焦，报告 `aria-disabled`；渲染为链接时到头失去 `href` 并离开 Tab 顺序。
+- 点击页码后范围移动，焦点留在该页上；列表整体重渲染时也会尝试把焦点还给同一部件，因此 key 要用 item 的值而不是索引。
+- 省略号对屏幕阅读器隐藏，不会被读成页码。
+
+## 相关组件
+
+- [轮播](/docs/components/carousel)：幻灯片形式的分页展示，带指示器与自动播放。
+- [状态与事件](/docs/concepts/state-and-events)：受控、非受控与变更拦截的通用约定。
+- [控制器](/docs/concepts/controllers)：从组件树外驱动分页。

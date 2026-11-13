@@ -1,0 +1,129 @@
+---
+title: "可折叠区域"
+description: "Collapsible 用一个按钮开合一块内容：受控与非受控、拦截变更、高度动画、保留内容与页内查找，外观由你决定。"
+sidebar:
+  order: 72
+---
+
+`Collapsible`（可折叠区域）是最小的开合单元：一个触发按钮加一块可展开的内容。适合「显示更多」、剧透警告、备注输入这类单块内容的显隐。多块内容成组开合用[折叠面板](/docs/components/accordion)；在同一空间切换互斥视图用[标签页](/docs/components/tabs)。
+
+## 组合
+
+```text
+Collapsible
+├── CollapsibleTrigger
+└── CollapsiblePanel
+```
+
+根和面板渲染 `div`，触发器渲染原生 `button`。触发器也可以放在根外部，通过控制器驱动。组件不带样式，开合动画由你按状态属性编写。
+
+## 用法
+
+```tsx
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
+
+function Example() {
+  return (
+    <Collapsible>
+      <CollapsibleTrigger>查看配送说明</CollapsibleTrigger>
+      <CollapsiblePanel>
+        标准件 5 到 7 天送达，偏远地区顺延 2 天。
+      </CollapsiblePanel>
+    </Collapsible>
+  );
+}
+```
+
+`defaultOpen` 让它初始展开。`disabled` 禁止触发器开合，但触发器仍可聚焦并报告 `aria-disabled="true"`；包裹在禁用的 `fieldset` 里效果相同，此时 `open` 属性和控制器仍能开合面板。
+
+## 受控与拦截
+
+传入 `open` 并在 `onOpenChange(open, details)` 里更新它即为受控。`details.reason` 说明来源：`trigger-press`、`find-in-page` 或 `imperative`；调用 `details.cancel()` 取消这次变更。`onOpenChangeComplete(open)` 在开合动画结束后运行。
+
+```tsx
+const [open, setOpen] = React.useState(false);
+
+<Collapsible
+  open={open}
+  onOpenChange={(next, details) => {
+    if (!next && details.reason === "trigger-press" && !window.confirm("收起后草稿仍会保留，确定？")) {
+      details.cancel();
+      return;
+    }
+    setOpen(next);
+  }}
+>
+  <CollapsibleTrigger>备注</CollapsibleTrigger>
+  <CollapsiblePanel>
+    <textarea placeholder="给骑手留言" />
+  </CollapsiblePanel>
+</Collapsible>;
+```
+
+页面别处的按钮想开合它时，用 `createCollapsibleController()`（来自 `@ui-sdk/react/collapsible`）创建控制器传给 `controller`，调用 `isOpen / setOpen / open / close / toggle / focus`。每个挂载的可折叠区域配一个控制器，写方法在变更被取消或无变化时返回 `false`。参见[控制器](/docs/concepts/controllers)。
+
+## 保留内容与页内查找
+
+关闭的面板默认从页面卸载。`CollapsiblePanel` 的 `keepMounted` 让它隐藏留在页面里，保住输入草稿等局部状态；`hiddenUntilFound` 进一步以 `hidden="until-found"` 保留，浏览器页内查找命中其文字时立即展开（不播放动画），reason 为 `find-in-page`。跟随链接跳进隐藏面板同样会展开它。
+
+<Aside type="note" title="服务端渲染">
+`hiddenUntilFound` 在服务端输出布尔 `hidden`，水合后才变成可查找的 `until-found`，首屏 HTML 里面板仍是隐藏的。
+</Aside>
+
+## 样式与状态
+
+三个部件带 `data-slot`：`collapsible`、`collapsible-trigger`、`collapsible-panel`，都带 `data-open` / `data-closed` / `data-disabled`。面板另有 `data-starting-style`（入场首帧）与 `data-ending-style`（退场期间），配合测量到的 `--collapsible-panel-height`（横向开合用 `--collapsible-panel-width`）做高度动画：
+
+```css
+[data-slot="collapsible-panel"] {
+  height: var(--collapsible-panel-height);
+  overflow: hidden;
+  transition: height 0.2s ease-out;
+}
+[data-slot="collapsible-panel"]:is([data-starting-style], [data-ending-style]) {
+  height: 0;
+}
+[data-slot="collapsible-trigger"][data-open] > svg {
+  rotate: 180deg;
+}
+[data-slot="collapsible-trigger"][data-disabled] {
+  color: gray;
+}
+```
+
+面板等退场动画结束再卸载，随后运行 `onOpenChangeComplete`；初始就展开的面板直接显示，不播动画。详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+根 `Collapsible` 的主要 props：
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `open` | `boolean` | 面板是否展开，传入即受控。 |
+| `defaultOpen` | `boolean` | 非受控时初始是否展开。 |
+| `onOpenChange` | `(open, details) => void` | 面板要开合时运行，`details.cancel()` 可拦截。 |
+| `onOpenChangeComplete` | `(open) => void` | 开合动画结束后运行。 |
+| `disabled` | `boolean` | 触发器不再开合面板，但仍可聚焦。 |
+| `controller` | `object` | 用 `createCollapsibleController()` 创建。 |
+
+`CollapsiblePanel` 另有 `keepMounted` 与 `hiddenUntilFound`；`CollapsibleTrigger` 没有专属 props，只接受所渲染元素的属性。
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA disclosure 模式：
+
+- `Enter` / `Space` 开合面板，焦点留在触发器上。
+- `Tab` 从触发器进入展开的面板；关闭的面板被跳过。
+- 关闭持有焦点的面板时，焦点回到触发器。
+
+触发器用 `aria-expanded` 报告开合状态，面板挂载期间用 `aria-controls` 指向它。禁用时触发器保持可聚焦并带 `aria-disabled`，屏幕阅读器仍能读到它。
+
+## 相关组件
+
+- [折叠面板](/docs/components/accordion)：多块内容成组开合，含单开 / 多开控制。
+- [标签页](/docs/components/tabs)：在同一空间切换互斥视图。
+- [样式与动画](/docs/concepts/styling-and-animation)：状态属性与入场退场动画的通用约定。

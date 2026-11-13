@@ -1,0 +1,184 @@
+---
+title: "图片裁剪"
+description: "ImageCropper 通过移动、缩放选区或在固定框下平移、缩放图片来选定保留区域，支持宽高比、旋转、翻转与圆形头像，裁剪结果可直接交给 cropImage。"
+sidebar:
+  order: 28
+---
+
+`ImageCropper`（图片裁剪）让人选定照片里要保留的部分，比如头像或封面。裁剪结果是图像自身像素坐标里的一个矩形，附带四分之一圈旋转与翻转，可直接交给 `cropImage`（来自 `@ui-sdk/react/image`）生成文件。它有两种模式：`box` 移动并缩放覆盖整图的选区，`frame` 固定选区、在其下平移并缩放图片（头像编辑器）。部件无样式，先用[文件输入](/docs/components/file-input)拿到图片的对象 URL 作为 `src`。
+
+## 组合
+
+```text
+ImageCropper
+├── ImageCropperViewport
+│   ├── ImageCropperImage
+│   └── ImageCropperSelection
+│       ├── ImageCropperGrid
+│       └── ImageCropperHandle
+├── ImageCropperZoom
+├── ImageCropperRotate
+└── ImageCropperFlip
+```
+
+`ImageCropper` 持有裁剪与图片 `src`，是包住各部件的组。`ImageCropperViewport` 是图片显示的区域，给它尺寸，其内边距让图片不贴边。`ImageCropperImage` 是被旋转、翻转的图片，给它 `alt`。`ImageCropperSelection` 把裁剪框显示在图片上，是一个可拖动或用方向键移动的滑块。`ImageCropperGrid` 在选区上画三分线，供你设置样式。`ImageCropperHandle` 从某条边或角缩放选区，由 `position` 指定（如 `"se"` 为右下角）。`ImageCropperZoom` 是从 1（最大裁剪）到 `maxZoom` 的范围输入，`ImageCropperRotate` 顺时针转四分之一圈，`ImageCropperFlip` 左右镜像（`direction="vertical"` 则上下）。视口、图片与选区必需，其余可选。
+
+## 用法
+
+```tsx
+"use client";
+
+import {
+  ImageCropper,
+  ImageCropperHandle,
+  ImageCropperImage,
+  ImageCropperSelection,
+  ImageCropperViewport,
+} from "@ui-sdk/react/image-cropper";
+
+function CoverPhoto({ src }: { src: string }) {
+  return (
+    <ImageCropper aria-label="封面照片" src={src} aspectRatio={3}>
+      <ImageCropperViewport>
+        <ImageCropperImage alt="你的封面照片" />
+        <ImageCropperSelection>
+          <ImageCropperHandle position="nw" />
+          <ImageCropperHandle position="se" />
+        </ImageCropperSelection>
+      </ImageCropperViewport>
+    </ImageCropper>
+  );
+}
+```
+
+用 `aria-label` 给裁剪器命名。图片加载前根带 `data-loading` 与 `aria-busy`，选区隐藏。加载后裁剪框从中间开始，按 `aspectRatio` 取图像允许最大尺寸的五分之四（让边缘露出；`frame` 模式下则取允许的最大），除非你传 `defaultCrop`（如 `{ x: 40, y: 40, width: 320, height: 240 }`）。
+
+## 宽高比与最小尺寸
+
+`aspectRatio` 固定裁剪的宽高比，如 `1` 为正方形、`16 / 9` 为宽屏；改变它会让裁剪围绕中心适配新比例。不设时裁剪自由，拖动角柄时按住 `Shift` 保持当前比例。`minWidth` / `minHeight` 以图像像素为单位阻止它变得过小：
+
+```tsx
+<ImageCropper aria-label="照片" src={src} aspectRatio={1} minWidth={64} minHeight={64}>
+  {/* … */}
+</ImageCropper>
+```
+
+## 框选模式与头像
+
+`mode="frame"` 用于头像编辑器：选区静止并保持尽可能大，你拖动在其下平移图片，用滚轮、双指捏合或缩放输入来缩放，框模式下不显示角柄。`shape="circle"` 把选区变圆，但裁剪仍是它的矩形，所以也要给 `cropImage` 传 `shape: "circle"`。下面保存一个 128 像素的圆形头像：
+
+```tsx
+"use client";
+import * as React from "react";
+import { cropImage } from "@ui-sdk/react/image";
+import {
+  ImageCropper, ImageCropperImage, ImageCropperRotate,
+  ImageCropperSelection, ImageCropperViewport, ImageCropperZoom,
+  type ImageCrop,
+} from "@ui-sdk/react/image-cropper";
+
+function Avatar({ src }: { src: string }) {
+  const [crop, setCrop] = React.useState<ImageCrop>();
+  const [avatar, setAvatar] = React.useState<string>();
+  React.useEffect(() => () => { if (avatar) URL.revokeObjectURL(avatar); }, [avatar]);
+
+  async function save() {
+    if (!crop) return;
+    const file = await cropImage(src, crop, { width: 128, shape: "circle" });
+    setAvatar(URL.createObjectURL(file));
+  }
+
+  return (
+    <ImageCropper aria-label="头像" src={src} mode="frame" aspectRatio={1}
+      shape="circle" maxZoom={4} crop={crop} onCropChange={setCrop}>
+      <ImageCropperViewport>
+        <ImageCropperImage alt="你的照片" />
+        <ImageCropperSelection />
+      </ImageCropperViewport>
+      <ImageCropperZoom />
+      <ImageCropperRotate>旋转</ImageCropperRotate>
+      <button type="button" onClick={save}>保存头像</button>
+      {avatar && <img src={avatar} alt="你的新头像" />}
+    </ImageCropper>
+  );
+}
+```
+
+`maxZoom` 是裁剪放大图像的上限，1 表示在该比例下图像允许的最大裁剪。
+
+## 旋转与翻转
+
+`ImageCropperRotate` 顺时针转四分之一圈，键盘 `R` 同样生效、按住 `Shift` 反向。`ImageCropperFlip` 镜像图像，`direction="vertical"` 上下翻转。裁剪随图像一起旋转、翻转，从而保持照片的同一部分；它的 `x`、`y` 从图像显示时（已旋转、翻转）的左上角算起，正是 `cropImage` 所需的坐标。
+
+## 受控与控制器
+
+传 `crop` 并在 `onCropChange` 里更新它。`onCropChange` 在拖动的每一步、每次按键或滚轮、以及图片加载时都运行；`onCropCommit` 只在交互结束（指针抬起、按键、滚轮停下）时运行一次，用它来保存。每次变更带 `details.reason`（如 `drag`、`step-key`、`zoom-input`、`rotate-press`、`flip-press`、`aspect-ratio-change`、`image-load`、`imperative`），`details.cancel()` 保留当前裁剪。`createImageCropperController()` 创建的控制器可从任意处设置：`getCrop` / `setCrop`、`rotate(1 | -1)`、`flip`、`getZoom` / `setZoom`、`focus`，写方法返回是否真的变更：
+
+```tsx
+const [controller] = React.useState(() => createImageCropperController());
+
+<ImageCropper aria-label="照片" src={src} controller={controller}
+  onCropCommit={(crop, details) => console.log(crop, details.reason)}>
+  {/* … */}
+</ImageCropper>
+<button type="button" onClick={() => controller.setZoom(2)}>放大</button>;
+```
+
+参见[状态与事件](/docs/concepts/state-and-events)与[控制器](/docs/concepts/controllers)。
+
+## 样式与状态
+
+部件无样式，只保留必需定位：视口是 `position: relative` 且 `overflow: hidden`，图片与选区以像素内联样式定位。给视口尺寸、给角柄尺寸并放到选区对应的边或角。`box` 视口要容纳整图，把它的 `aspect-ratio` 设为 `--image-cropper-aspect-ratio`；选区上的大 `box-shadow` 压暗选区外的图像；网格仅在 `data-dragging` 时显示。各部件带 `data-mode`（`box` / `frame`）、`data-shape`（`rectangle` / `circle`）、`data-loading`、`data-disabled`、`data-error`，可拖动者还带 `data-dragging`；角柄带 `data-position`，翻转按钮带 `data-direction`：
+
+```css
+[data-slot="image-cropper-viewport"] {
+  width: 100%;
+  aspect-ratio: var(--image-cropper-aspect-ratio);
+}
+[data-slot="image-cropper-selection"] {
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.5);
+}
+[data-slot="image-cropper-grid"] {
+  opacity: 0;
+}
+[data-slot="image-cropper-grid"][data-dragging] {
+  opacity: 1;
+}
+```
+
+`--image-cropper-aspect-ratio` 是图片加载后、旋转显示时的宽高比。详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+根 `ImageCropper` 的常用属性：
+
+- `src`（`string`）：图片 URL，如所选文件的对象 URL。
+- `crop` / `defaultCrop`（`ImageCrop`）：图像自身像素里的裁剪，含 `rotation`、`flipX`、`flipY`，可直接交给 `cropImage`；传 `crop` 即受控。
+- `onCropChange` / `onCropCommit`（`(crop: Required<ImageCrop>, details) => void`）：逐步变更与交互结束时各调用，`details.cancel()` 可拦截变更。
+- `mode`（`"box" | "frame"`）：移动缩放选区，还是固定选区、平移缩放图片。
+- `aspectRatio`（`number`）、`shape`（`"rectangle" | "circle"`）：宽高比与选区形状。
+- `minWidth` / `minHeight`（`number`，图像像素）、`maxZoom`（`number`）：最小尺寸与最大放大。
+- `disabled`（`boolean`）：停止一切变更，选区不可聚焦，按钮与缩放禁用。
+- `controller`（用 `createImageCropperController()` 创建）。
+
+`ImageCropperHandle` 接受 `position`（`"n" | "e" | "s" | "w" | "ne" | "nw" | "se" | "sw"`）；`ImageCropperFlip` 接受 `direction`（`"horizontal" | "vertical"`）。
+
+## 键盘与无障碍
+
+没有哪个 WAI-ARIA 模式专门覆盖图片裁剪，因此它由现有模式组合而成：裁剪器是一个组，选区与每个角柄遵循[滑块](/docs/components/slider)模式，并用文字播报裁剪（如「300 × 300 像素，位于 50, 0」）；缩放是原生范围输入，播报其级别（如「125%」）。选区、角柄与缩放默认以英文命名，传 `aria-label` 改用其他语言。
+
+| 按键 | 行为 |
+| --- | --- |
+| 方向键 | 移动选区，在角柄上则移动其边 |
+| `Shift` + 方向键 | 移动十倍距离 |
+| `+` / `-` | 围绕裁剪中心放大或缩小 |
+| `R` | 顺时针转四分之一圈，按住 `Shift` 反向 |
+| `Escape` | 拖动过程中把裁剪恢复到拖动开始处 |
+
+每次按键都会提交，如同一次拖动结束。
+
+## 相关组件
+
+- [文件输入](/docs/components/file-input)：选择要裁剪的图片文件，得到对象 URL。
+- [头像](/docs/components/avatar)：展示裁剪后的结果。
+- [滑块](/docs/components/slider)：选区与角柄遵循的键盘与 ARIA 模式。

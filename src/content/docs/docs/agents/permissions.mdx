@@ -1,0 +1,120 @@
+---
+title: "权限"
+description: "用 allow 选择智能体能跑的动作，用 data-agent-confirm 标记需人确认的控件，用 hidden/secret 控制可见性，用变更回调取消值。"
+sidebar:
+  order: 2
+---
+
+选择智能体能改什么、能看什么、何时该问人。用 `allow` 选择哪些动作可运行，用组件的变更回调在值应用前拒绝它。这些检查在智能体通过 [WebMCP](/docs/agents/connect) 操作时同样生效。
+
+## 选择动作
+
+没有 `allow` 回调时，桥接受所有支持的动作。加一个，让智能体只能改 Region：
+
+```ts
+import { createAgent } from "@ui-sdk/react/agent";
+
+const agent = createAgent({
+  allow: ({ component, label, action }) =>
+    component === "select" && label === "Region" && action === "setValue",
+});
+```
+
+返回 `true` 放行、`false` 拒绝。拒绝时 `act` 返回 `ok: false` 并停止，之前的步骤保持已应用。
+
+回调还收到 `ref` 与 `args`。智能体按标签请求某项时，桥先把标签解析成值（如 `"North America"` 变成 `"north-america"`）。只在打开时才显示选项的列表需要打开来解析标签，所以回调先被以标签询问（打开前），再以值询问。回调在步骤改动任何东西前运行：一个要打开闭合菜单或对话框来找按钮的 `press`，会先问再打开，答案为否时再关上。
+
+## 先问人
+
+要在改 Region 前问人，从 `allow` 返回他们的答案：
+
+```ts
+const agent = createAgent({
+  allow: ({ component, label, action, args }) => {
+    if (component !== "select" || label !== "Region" || action !== "setValue") {
+      return false;
+    }
+    return window.confirm(`把 Region 改为 ${args[0]}？`);
+  },
+});
+```
+
+用你自己的确认界面时，返回一个 `Promise<boolean>`，以人的答案 resolve。桥会等待后再跑动作，同一桥上后续的 `act` 与 `query` 也等待。若 5 分钟内无人应答，步骤失败、传给 `allow` 的 `signal` 中止，你可据此关闭提示。在 `createAgent` 上设 `timeout` 改变等待时长。
+
+## 标记需要人的控件
+
+有些控件无论 `allow` 规则如何都应等人。加 `data-agent-confirm`，附一句说明控件做什么的话：
+
+```tsx
+<Button
+  data-agent-confirm="从你的卡扣 20 美元购买 1000 积分"
+  onClick={buyCredits}
+>
+  购买积分
+</Button>
+```
+
+快照会把按钮列为 `confirm: "从你的卡扣 20 美元购买 1000 积分"`，智能体在尝试前就知道。没有 `allow` 时，按它会失败并提示需要人。有 `allow` 时，步骤等待你的回调，`step.confirm` 带着那句话，把它展示给人并返回答案：
+
+```ts
+const agent = createAgent({
+  allow: (step, { signal }) =>
+    step.confirm ? showConfirm(step.confirm, { signal }) : true,
+});
+```
+
+人说否则步骤失败。这个标记覆盖它的元素及内部一切、对任何动作生效：放在表单或 section 上覆盖其中每个控件，或放在对话框内容上覆盖里面的按钮（无论对话框渲染在哪）。
+
+## 对智能体隐藏部分页面
+
+另外两个标记改变智能体能看到什么：
+
+| 属性 | 智能体得到什么 |
+| --- | --- |
+| `data-agent-hidden` | 什么都没有。内部组件不进 `snapshot` 与 `query`，指名其中组件的步骤被告知去问人。 |
+| `data-agent-secret` | 组件本身，但其值填入后显示为 `"[redacted]"`。智能体仍能往里输入。 |
+
+```tsx
+<section data-agent-hidden>
+  <RecoveryCodes />
+</section>
+
+<Field data-agent-secret>
+  <FieldLabel>税号</FieldLabel>
+  <Input />
+</Field>
+```
+
+`data-agent-hidden` 内的变更仍到达你的观察日志，而 `agent.subscribe` 保持安静。秘密值不进 `snapshot`、`act` 结果与变更事件，字段的错误文本也读作 `"[redacted]"`。密码、卡号、一次性验证码字段无需标记即按秘密处理。开发时拼错的标记（如 `data-agent-confim`）会记录一条警告并指出本意的名字。
+
+## 取消值变更
+
+智能体的变更与人的变更走同一套回调。检查 `details.source` 区分它们，调用 `details.cancel()` 保留当前值。例如拒绝智能体选 Asia Pacific：
+
+```tsx
+onValueChange={(value, details) => {
+  if (details.source === "agent" && value === "asia-pacific") {
+    details.cancel();
+  }
+}};
+```
+
+你自己仍可选 Asia Pacific。去掉 `details.source === "agent"` 判断则规则适用于每次变更。
+
+取消值变更可能让 `act` 仍是 `ok: true` 但该步无变化。检查每步的 `changes` 与返回的 `values` 确认实际发生了什么。把值检查放在这些变更回调里：`setValue` 等动作直接调用组件 API，键盘或指针处理器里的检查不会运行。
+
+## allow 覆盖什么
+
+`allow` 检查的是**动作**。组件及其动作仍在 `snapshot()` 里可见，智能体仍能用 `query()` 读选项。要让某区域完全不可见，用 `data-agent-hidden`。
+
+查找组件或其选项可能在请求的动作被检查前先打开一个 section 或弹出层，`query()` 也可能短暂打开弹出层读选项。需要拒绝这些开合时，用组件的 `onOpenChange` 或等价回调。
+
+<Aside type="tip" title="两层防线">
+allow 在动作运行前把关（适合「能不能做」），变更回调在值应用前把关（适合「这个值行不行」）。两者叠加：allow 决定智能体能否尝试，details.cancel() 决定具体值能否落地。重要操作再用 data-agent-confirm 强制人确认。
+</Aside>
+
+## 相关页面
+
+- [连接智能体](/docs/agents/connect)：搭桥与注册工具。
+- [状态与事件](/docs/concepts/state-and-events)：`details.source` 与 `details.cancel()`。
+- [智能体概述](/docs/agents)：桥接全貌。

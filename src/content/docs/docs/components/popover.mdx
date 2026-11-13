@@ -1,0 +1,175 @@
+---
+title: "弹出框"
+description: "Popover 在触发器旁打开可交互的小任务面板，自动处理定位、焦点与关闭，支持表单、悬停打开与多触发器共享。"
+sidebar:
+  order: 57
+---
+
+`Popover`（弹出框）把一个小任务留在它所属的控件旁边：放入字段、按钮等可交互内容，定位、焦点与关闭都由组件处理。纯动作列表用[菜单](/docs/components/menu)，只读的一句话提示用[文字提示](/docs/components/tooltip)，需要居中模态的完整任务用[对话框](/docs/components/dialog)。
+
+## 演示
+
+点击「分享」打开分享面板，复制链接或点「完成」关闭；Escape 与点击外部同样关闭，焦点回到触发器。
+
+<DocDemo name="popover" />
+
+## 组合
+
+```text
+Popover
+├── PopoverTrigger
+└── PopoverContent
+    ├── PopoverArrow
+    ├── PopoverTitle
+    ├── PopoverDescription
+    └── PopoverClose
+```
+
+内容具有 dialog 角色：`PopoverTitle` 为它命名（渲染 `h2`），`PopoverDescription` 补充说明（渲染 `p`）。箭头可选，一个弹出框可以有多个 `PopoverClose`。触发器可以放在弹出框内部，也可以通过控制器[从外部连接](/docs/concepts/controllers)。
+
+## 用法
+
+```tsx
+import {
+  Popover,
+  PopoverClose,
+  PopoverContent,
+  PopoverDescription,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@ui-sdk/react/popover";
+
+function Example() {
+  return (
+    <Popover>
+      <PopoverTrigger>分享</PopoverTrigger>
+      <PopoverContent>
+        <PopoverTitle>分享文档</PopoverTitle>
+        <PopoverDescription>任何拥有链接的人都可以查看。</PopoverDescription>
+        <PopoverClose>完成</PopoverClose>
+      </PopoverContent>
+    </Popover>
+  );
+}
+```
+
+## 表单与未保存内容
+
+普通表单可以先保存再关闭：焦点从第一个字段开始，任务结束后回到触发器。`method="dialog"` 的表单提交即关闭，并把提交按钮的 `value` 作为 `returnValue` 返回。
+
+有未保存内容时把 `dismissible` 设为 `false`：Escape 与外部点击不再关闭，而是触发 `onDismissAttempt`，可以在那里询问「放弃修改？」；焦点离开会被静默拒绝。触发器、Close 部件与控制器始终能关闭。
+
+```tsx
+<Popover dismissible={note === ""} onDismissAttempt={() => setAsking(true)}>
+  <PopoverTrigger>添加备注</PopoverTrigger>
+  <PopoverContent>
+    <form method="dialog">
+      <button type="submit" value="cancel" formNoValidate>取消</button>
+      <button type="submit" value="save">保存</button>
+    </form>
+  </PopoverContent>
+</Popover>
+```
+
+## 定位、箭头与锚点
+
+`side` 选择打开方向（默认 `bottom`），`align` 沿触发器对齐 `start` / `center` / `end`；空间不足时翻转或平移，`data-side` 与 `data-align` 报告实际落点。`sideOffset` 是与触发器的间距（默认 4px），`alignOffset` 沿触发器偏移，`collisionPadding` 是与窗口边缘保留的距离。`anchor` 可改为相对其他元素、选择器、`{ x, y }` 点或任何带 `getBoundingClientRect()` 的对象定位，锚点移动时会重新读取。
+
+```tsx
+<PopoverContent side="top" align="start" sideOffset={10} arrowPadding={12}>
+  <PopoverArrow />
+  <PopoverTitle>键盘快捷键</PopoverTitle>
+  <PopoverDescription>按 ? 查看全部。</PopoverDescription>
+</PopoverContent>
+```
+
+`PopoverArrow` 跟随实际落点一侧（含翻转后），带相同的 `data-side`；够不到触发器中点时带 `data-arrow-clamped`。箭头伸出面板外，保持外层 overflow 可见；正文要滚动就放在内部元素上。
+
+## 模态、焦点与悬停打开
+
+`modal` 控制弹出框与页面的关系：默认 `false`，页面照常可用，焦点离开即关闭；`"trap-focus"` 把 Tab 锁在内部但页面仍可滚动、点击；`true` 还会让页面其余部分 inert 并锁定滚动。`initialFocus` 选择首个聚焦元素（`"none"` 表示不动焦点），`finalFocus` 控制关闭后焦点去向。
+
+`openOnHover` 在保留点击、键盘与触摸激活的同时增加悬停打开，`delay` 与 `closeDelay` 控制开合前的停顿；指针可以穿过空隙进入内容继续交互。悬停打开不移动焦点，触摸打开聚焦面板本身以免弹出软键盘。
+
+```tsx
+<Popover modal="trap-focus" openOnHover delay={200} closeDelay={150}>
+  <PopoverTrigger>@kofi</PopoverTrigger>
+  <PopoverContent initialFocus="none">
+    {/* 可交互的预览内容 */}
+  </PopoverContent>
+</Popover>
+```
+
+## 受控、快捷键与外部触发器
+
+传入 `open` 并在 `onOpenChange` 中更新；`details.reason` 说明原因（如 `trigger-press`、`outside-press`、`escape-key`、`shortcut`），`details.cancel()` 可拒绝这次变更。触发器的 `shortcut`（如 `"mod+i"`）用键盘开合弹出框，`PopoverShortcut` 按平台显示按键，触发器同时声明 `aria-keyshortcuts`。
+
+列表里的多行编辑不必每行渲染一个弹出框：把触发器与弹出框连到同一个 `createPopoverController<Payload>()`，每行传自己的 `payload`，内容从 `state.payload` 读取；只有激活的触发器带 `data-open` 并接收返回的焦点。`controller.open({ payload, anchor })` 用代码打开，返回的 Promise 在关闭时携带原因与 `returnValue`。
+
+```tsx
+const editor = createPopoverController<Member>();
+<PopoverTrigger controller={editor} payload={member}>编辑</PopoverTrigger>
+<Popover controller={editor}>
+  <PopoverContent<Member>>
+    {(state) => <PopoverTitle>{state.payload?.name}</PopoverTitle>}
+  </PopoverContent>
+</Popover>
+```
+
+## 样式与状态
+
+各部件的 `data-slot` 为 `popover-trigger`、`popover-content`、`popover-arrow`，开合带 `data-open` / `data-closed`，触发器另有 `data-disabled`；内容带 `data-side` / `data-align` 标记落点，`data-starting-style` / `data-ending-style` 供入场退场动画，`data-presentation`（`popover` / `sheet`）标记本次呈现方式。
+
+内容上的 CSS 变量：`--anchor-width` / `--anchor-height`（锚点尺寸）、`--available-width` / `--available-height`（到视口边缘的可用空间）、`--transform-origin`（缩放原点）、`--arrow-offset`（锚点中心在弹出层边上的位置）。`presentation="sheet"` 时从底部滑出、可下滑关闭，另有 `--drawer-progress`、`--drawer-dim`、`--sheet-backdrop` 等变量，不要覆盖它自己的位移。
+
+```css
+[data-slot="popover-content"] {
+  transform-origin: var(--transform-origin);
+  transition: opacity 150ms, scale 150ms;
+}
+[data-slot="popover-content"]:is([data-starting-style], [data-ending-style]) {
+  opacity: 0;
+  scale: 0.96;
+}
+```
+
+退场动画播完才卸载，`onOpenChangeComplete` 在动画结束后触发；`keepMounted` 保留隐藏内容。弹出框默认就地渲染进浏览器顶层，`container` 可移动 DOM。详见[弹出层](/docs/concepts/popups)与[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `open` / `defaultOpen` | `boolean` | 受控 / 非受控的开合状态。 |
+| `onOpenChange` | `(open, details) => void` | 开合变更；`details.reason` 说明原因，可 `cancel()`。 |
+| `onOpenChangeComplete` | `(open: boolean) => void` | 动画结束后报告开合完成。 |
+| `onPayloadChange` | `(payload, details) => void` | 内容展示的 payload 变化（另一触发器接管等），可 `cancel()`。 |
+| `modal` | `boolean \| "trap-focus"` | 默认 `false`；`true` 锁焦点、锁滚动并 inert 页面。 |
+| `openOnHover` | `boolean` | 悬停触发器也能打开，点击与键盘仍有效。 |
+| `delay` / `closeDelay` | `number` | 悬停打开 / 关闭前的停顿毫秒数。 |
+| `presentation` | `"popover" \| "sheet" \| "auto"` | 呈现方式；`auto` 在小触摸屏上每次打开时选 sheet。 |
+| `dismissible` | `boolean` | 是否允许 Escape、外部点击、下滑等关闭。 |
+| `onDismissAttempt` | `({ reason, event }) => void` | `dismissible` 拒绝主动关闭时触发。 |
+| `controller` | `PopupController` | 用 `createPopoverController()` 创建，连接外部触发器。 |
+| `container` | `Element \| DocumentFragment \| null` | 把弹出层渲染到指定元素而非就地。 |
+
+`PopoverTrigger` 另有 `disabled`、`focusableWhenDisabled`、`payload`、`shortcut`、`controller`；`PopoverContent` 有 `side`、`align`、`sideOffset`、`alignOffset`、`collisionPadding`、`arrowPadding`、`anchor`、`initialFocus`、`finalFocus`、`keepMounted`、`container`；`PopoverShortcut` 有 `shortcut`。
+
+## 键盘与无障碍
+
+触发器是打开 dialog 的按钮，内部焦点遵循 WAI-ARIA dialog 模式；标题为弹出框命名，描述补充上下文，没有标题时由触发器命名。
+
+| 按键 | 行为 |
+| --- | --- |
+| `Enter` / `Space` | 按下触发器，打开或关闭 |
+| `Tab` / `Shift+Tab` | 在内容中顺序移动；非模态时离开即关闭 |
+| `Escape` | 关闭并把焦点还给触发器；输入法组合期间不关闭 |
+| 触发器 `shortcut` | 全局开合，如 `mod+i` |
+
+打开时焦点进入第一个可聚焦元素；`Shift+Tab` 从第一个元素回到触发器，`Tab` 越过最后一个元素继续到触发器之后。`modal` 为 `true` 或 `"trap-focus"` 时 Tab 锁在内部。嵌套弹出框中 Escape 只关闭最内层。
+
+## 相关组件
+
+- [菜单](/docs/components/menu)：纯动作列表，方向键导航。
+- [对话框](/docs/components/dialog)：居中的模态任务与表单。
+- [文字提示](/docs/components/tooltip)：不可交互的简短说明。
+- [弹出层](/docs/concepts/popups)：顶层渲染、定位变量与关闭行为的共享模型。

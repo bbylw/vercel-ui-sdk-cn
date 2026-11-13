@@ -1,0 +1,204 @@
+---
+title: "偏好设置"
+description: "Preferences 把用户偏好写到 data-* 属性上供 CSS 使用，可持久化、可作用于整页，并在首帧前应用已保存的值。"
+sidebar:
+  order: 93
+---
+
+`Preferences`（偏好设置）把偏好值放到 `data-*` 属性上并保持更新，让你的 CSS 直接跟着用户的选择走：列表还是网格、紧凑还是宽松、浅色还是深色。它不渲染任何控件，切换按钮由你自己写；它负责应用属性、保存值，以及在服务端渲染时提前生效。
+
+## 用法
+
+`Preferences` 只有一个根，以 `display: contents` 渲染，不产生自己的盒子。偏好实例来自 `@ui-sdk/core` 的 `createPreference` 或 `createColorScheme`：
+
+```text
+Preferences
+└── 你的内容（属性写在 Preferences 元素上，global 时写在 html 上）
+```
+
+先定义偏好，指定可选值、默认值与要写出的属性：
+
+```ts title="preferences.ts"
+import { createPreference } from "@ui-sdk/core";
+
+const view = createPreference({
+  values: ["list", "grid"],
+  defaultValue: "list",
+  attribute: "data-view",
+});
+
+export { view };
+```
+
+把它交给 `Preferences`，然后按属性写样式：
+
+```tsx title="file-list.tsx"
+import { Preferences } from "@ui-sdk/react/preferences";
+import { view } from "./preferences";
+
+function FileList() {
+  return (
+    <Preferences preferences={[view]}>
+      <ul data-slot="files">
+        <li>三季度路线图.pdf</li>
+        <li>发布检查清单.md</li>
+      </ul>
+    </Preferences>
+  );
+}
+```
+
+```css
+[data-view="grid"] [data-slot="files"] {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+}
+```
+
+初始是 `data-view="list"`。调用 `view.set("grid")` 后属性更新，列表变成网格。
+
+## 持久化保存
+
+加上 `storage`，选择在两次访问之间保留：
+
+```ts
+import { createLocalStorage, createPreference } from "@ui-sdk/core";
+
+const view = createPreference({
+  values: ["list", "grid"],
+  defaultValue: "list",
+  attribute: "data-view",
+  storage: createLocalStorage("app-preferences-view"),
+});
+```
+
+改动写入本地存储，刷新后恢复。也可以用 `createSessionStorage` 或 `createCookieStorage`；服务端渲染时 cookie 存储要按请求创建，详见[服务端渲染](/docs/concepts/server-rendering)。保存的值不在 `values` 里时会被忽略，回到 `defaultValue`。
+
+## 读取与切换
+
+值会影响渲染内容时用 `usePreference`，它在变化时更新组件，也可以用在 `Preferences` 之外。同一个偏好实例在哪里需要就传到哪里：
+
+```tsx
+import { Button } from "@ui-sdk/react/button";
+import { usePreference } from "@ui-sdk/react/preferences";
+import { view } from "./preferences";
+
+function ViewSwitch() {
+  const { value } = usePreference(view);
+
+  return (
+    <div role="group" aria-label="视图">
+      <Button
+        aria-pressed={value === "list"}
+        onClick={(event) =>
+          view.set("list", { reason: "press", event: event.nativeEvent })
+        }
+      >
+        列表
+      </Button>
+      <Button
+        aria-pressed={value === "grid"}
+        onClick={(event) =>
+          view.set("grid", { reason: "press", event: event.nativeEvent })
+        }
+      >
+        网格
+      </Button>
+    </div>
+  );
+}
+```
+
+`set(next, { reason, event })` 返回是否真的改变，`reason` 默认 `"imperative"`。偏好自己的 `onValueChange` 在变化前触发，`details.cancel()` 可以拒绝这次变更，参见[状态与事件](/docs/concepts/state-and-events)。
+
+## 整页与多个偏好
+
+定义时设 `global: true`，属性就写到 `<html>` 上，整页样式都能用；仍然要把它传给 `Preferences`，一个挂载的 `Preferences` 就够：
+
+```ts
+const density = createPreference({
+  values: ["comfortable", "compact"],
+  defaultValue: "comfortable",
+  attribute: "data-density",
+  global: true,
+  storage: createLocalStorage("app-preferences-density"),
+});
+```
+
+一次可以应用多个偏好，各自用自己的属性与 `global` 设置：
+
+```tsx
+import { createColorScheme, createLocalStorage } from "@ui-sdk/core";
+
+const colorScheme = createColorScheme({
+  storage: createLocalStorage("app-color-scheme"),
+});
+
+<Preferences preferences={[view, density, colorScheme]}>
+  <App />
+</Preferences>;
+```
+
+共享同一个实例的多个包装器跟随同一个值；要互相独立的选择就用不同实例与不同存储键。`createColorScheme` 的可选值是 `"system"`、`"light"`、`"dark"`，写出 `data-color-scheme`，并额外解析浏览器的偏好。
+
+## 服务端渲染
+
+服务端渲染时 `Preferences` 会输出一段脚本，在页面绘制前应用已保存的值，CSS 可以立刻使用这些属性。`usePreference` 先用服务端的值，hydration 之后再更新。
+
+内容安全策略要求 nonce 时，把响应里的 nonce 传进来：
+
+```tsx
+<Preferences preferences={[view]} nonce={nonce}>
+  <App />
+</Preferences>
+```
+
+基于 cookie 的偏好要按请求创建，避免把一位访客的选择带给另一位。完整做法参见[服务端渲染](/docs/concepts/server-rendering)。
+
+## 样式与状态
+
+`Preferences` 没有自己的 `data-slot` 状态属性，它写出的就是你在 `attribute` 里指定的那个属性，值来自 `values`。样式全部围绕这些属性展开：
+
+```css
+[data-view="grid"] [data-slot="files"] {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+[data-density="compact"] [data-slot="files"] li {
+  padding-block: 4px;
+}
+[data-color-scheme="dark"] {
+  color-scheme: dark;
+}
+```
+
+`global` 偏好写在 `<html>` 上，因此选择器可以从根开始匹配整页；非 global 偏好只影响 `Preferences` 内部的内容。详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+`Preferences`：
+
+| 属性 | 类型 | 说明 |
+| --- | --- | --- |
+| `preferences` | `readonly PreferenceLike[]` | 要应用的偏好，来自 `createPreference` 或 `createColorScheme`。 |
+| `nonce` | `string` | 内容安全策略给内联脚本的 nonce。 |
+
+`usePreference(preference)` 返回偏好当前状态并在变化时更新组件：普通偏好是 `{ value }`，配色方案还包含 `system`（浏览器偏好）与 `resolved`（实际生效的方案）。
+
+`createPreference` 的选项：`values`、`defaultValue`、`attribute`（必须以 `data-` 开头）、`global`、`storage`、`onValueChange`。实例提供 `get()`、`set(next, change?)`、`subscribe(listener)`、`initialState` 与 `follow(store, key)`。
+
+## 键盘与无障碍
+
+`Preferences` 本身不渲染可聚焦元素，没有键盘交互，也不播报变化。无障碍表现取决于你写的控件：
+
+- 一组互斥的视图按钮用 `role="group"` 加 `aria-label` 命名，每个按钮用 `aria-pressed` 表达当前选择；也可以改用[分段控件](/docs/components/segmented-control)或[切换](/docs/components/switch)。
+- 属性变化不会自动通知屏幕阅读器。选择会改变内容含义时，自己补一条状态文本。
+- 深浅色切换要说明当前是「跟随系统」还是显式选择，不要只靠图标颜色。
+
+## 相关组件
+
+- [分段控件](/docs/components/segmented-control)：少量互斥选项的切换控件。
+- [切换](/docs/components/switch)：开关式的单个偏好。
+- [按钮](/docs/components/button)：带 `aria-pressed` 的切换按钮。
+- [服务端渲染](/docs/concepts/server-rendering)：首帧前应用偏好与按请求隔离存储。

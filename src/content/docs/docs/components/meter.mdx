@@ -1,0 +1,180 @@
+---
+title: "计量条"
+description: "Meter 显示已知范围内的读数，例如存储用量、电量或配额，支持单位、货币与自定义格式化。"
+sidebar:
+  order: 92
+---
+
+`Meter`（计量条）显示一个落在已知范围里的读数：存储用量、电量、账号配额、信用分。它把轨道填充到对应位置，屏幕阅读器读到同一个值。正在推进、终将完成的任务（例如上传）请用[进度条](/docs/components/progress)。
+
+## 组合
+
+```text
+Meter
+├── MeterLabel
+├── MeterValue
+└── MeterTrack
+    └── MeterIndicator
+```
+
+- `Meter` 持有值与范围。
+- `MeterLabel` 提供可见名称，也可以改用根上的 `aria-label`。
+- `MeterValue` 显示格式化后的值。
+- `MeterTrack` 决定条的尺寸，`MeterIndicator` 负责填充。
+
+值已经在根的可访问描述里，可见的 `MeterValue` 对屏幕阅读器隐藏，避免读两遍。
+
+## 用法
+
+```tsx
+import {
+  Meter,
+  MeterIndicator,
+  MeterLabel,
+  MeterTrack,
+  MeterValue,
+} from "@ui-sdk/react/meter";
+
+function Example() {
+  return (
+    <Meter value={68}>
+      <MeterLabel>存储用量</MeterLabel>
+      <MeterValue />
+      <MeterTrack>
+        <MeterIndicator />
+      </MeterTrack>
+    </Meter>
+  );
+}
+```
+
+`MeterValue` 没有子内容时显示格式化后的值；传入子内容则显示你写的文本。读数变化时直接传新的 `value`，Meter 跟随你的状态，没有 `onValueChange` 回调。
+
+## 范围与夹取
+
+`min` 与 `max` 默认 0 和 100。超出范围的值在填充宽度、百分比与 `aria-valuenow` 上被夹到边界，但状态里的 `value` 与非百分比格式保留你传入的原值：
+
+```tsx
+<Meter value={720} min={300} max={850} format={{ style: "decimal" }}>
+  <MeterLabel>信用分</MeterLabel>
+  <MeterValue />
+  <MeterTrack>
+    <MeterIndicator />
+  </MeterTrack>
+</Meter>
+```
+
+数字显示 720，填充显示它在 300 到 850 之间的位置（约 76%）。
+
+## 格式化与地区
+
+`format` 接受 `Intl.NumberFormat` 选项，或一个由值返回文本的函数；`locale` 决定数字与分隔符：
+
+```tsx
+<Meter
+  value={120}
+  max={250}
+  locale="zh-CN"
+  format={{ style: "unit", unit: "gigabyte" }}
+>
+  <MeterLabel>存储</MeterLabel>
+  <MeterValue />
+  <MeterTrack>
+    <MeterIndicator />
+  </MeterTrack>
+</Meter>
+
+<Meter value={18} max={25} format={(seats) => `${seats} / 25 个席位`}>
+  <MeterLabel>席位</MeterLabel>
+  <MeterValue />
+  <MeterTrack>
+    <MeterIndicator />
+  </MeterTrack>
+</Meter>
+```
+
+百分比格式报告值在 `min` 与 `max` 之间的位置，其他格式显示值本身。不传 `locale` 时，组件在挂载后读取页面 `lang`，没有则退回浏览器语言；服务端与客户端首帧使用英文，以免不一致。给周围内容设 `dir="rtl"` 可让轨道从右往左填充。
+
+## 值标签
+
+可见数字不足以说明含义时，用 `getValueLabel` 给屏幕阅读器更多上下文。它收到值与 `formatted`、`percent`、`min`、`max`：
+
+```tsx
+<Meter
+  value={750}
+  max={1000}
+  getValueLabel={(value, details) =>
+    `${details.max} 次请求中已用 ${value} 次，${details.formatted}`
+  }
+>
+  <MeterLabel>API 请求</MeterLabel>
+  <MeterValue>750 / 1,000</MeterValue>
+  <MeterTrack>
+    <MeterIndicator />
+  </MeterTrack>
+</Meter>
+```
+
+屏幕阅读器读到「1000 次请求中已用 750 次，75%」，可见文本保持紧凑。
+
+## 样式与状态
+
+给轨道高度、背景与宽度，指示条以内联百分比设置自身宽度。各部件的 `data-slot` 是 `meter`、`meter-label`、`meter-value`、`meter-track`、`meter-indicator`，没有状态属性：读数体现在根上的 `--meter-value` 与指示条宽度里。
+
+- `--meter-value`：值在 `min` 与 `max` 之间的位置，百分比形式，例如 `40%`。
+
+```css
+[data-slot="meter"] {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 12px;
+}
+[data-slot="meter-track"] {
+  grid-column: 1 / -1;
+  block-size: 8px;
+  border-radius: 999px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+[data-slot="meter-indicator"] {
+  block-size: 100%;
+  border-radius: inherit;
+  background: var(--color-brand);
+  transition: width 200ms ease;
+}
+[data-slot="meter-value"] {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted-foreground);
+}
+```
+
+需要把阈值标记、刻度之类的内容对齐到同一位置时，直接读根上的 `--meter-value`。详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+| 属性 | 类型 | 说明 |
+| --- | --- | --- |
+| `value` | `number` | 读数，必填；计量条没有忙碌态，始终有值。 |
+| `min` / `max` | `number` | 范围，默认 0 与 100；越界值在填充与百分比上被夹取。 |
+| `format` | `Intl.NumberFormatOptions \| ((value: number) => string)` | 可见值与屏幕阅读器共用的格式。 |
+| `locale` | `string` | 格式化使用的地区，默认跟随页面 `lang`。 |
+| `getValueLabel` | `(value, details) => string` | 替换屏幕阅读器读到的值文本，`details` 含 `formatted`、`percent`、`min`、`max`。 |
+| `debug` | `boolean` | 开发构建里把每次状态变化与原因打到控制台。 |
+
+渲染函数与状态类名收到 `value`（原值）与 `percent`（0 到 100）；`MeterValue` 另有 `text`（格式化后的文本，例如 `40%`）。
+
+## 键盘与无障碍
+
+计量条是纯展示部件，没有键盘交互，也不接受焦点。根使用 `meter` 角色，对外暴露范围与格式化后的值：
+
+- 用 `MeterLabel` 或根上的 `aria-label` 命名，否则读出来只有一个百分数。
+- 可见的 `MeterValue` 对屏幕阅读器隐藏，值由角色本身播报，不会重复。
+- 需要更多解释时用 `getValueLabel`，例如「12 个文件中已用 3 个」。
+- 超过 `max` 的值按 `max` 播报，轨道填满。
+
+## 相关组件
+
+- [进度条](/docs/components/progress)：会完成的任务，支持不确定态。
+- [滑块](/docs/components/slider)：需要用户拖动改值时用它，计量条只读。
+- [按钮](/docs/components/button)：触发异步动作时的等待态。
+- [样式与动画](/docs/concepts/styling-and-animation)：数据属性与过渡的通用写法。

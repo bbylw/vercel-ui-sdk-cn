@@ -1,0 +1,59 @@
+---
+title: "弹出层"
+description: "弹出层进入浏览器顶层、就地渲染；core 负责定位与锚点变量，模态管理 inert 与dismiss。"
+sidebar:
+  order: 4
+---
+
+菜单、选择器、对话框、弹出框、文字提示等共享同一套弹出层行为：进入浏览器**顶层（top layer）**、**就地渲染**（不搬去 portal）、由 core 自动相对锚点定位，并处理模态、焦点与 dismiss。
+
+## 顶层与就地渲染
+
+弹出层内容在组件树的原位置渲染，但通过顶层显示，因此不会被 `overflow: hidden` 或 transform 祖先裁剪，也天然盖住页面其余部分。你不需要 portal，也不需要手动管 z-index。
+
+core 在弹出层上设置定位变量，供你使用：
+
+- `--anchor-width` / `--anchor-height`：锚点尺寸，常用来让列表和触发器同宽。
+- `--transform-origin`：缩放动画的原点，跟随弹出方向。
+
+```css
+[data-slot="select-content"] {
+  width: var(--anchor-width);
+  transform-origin: var(--transform-origin);
+}
+```
+
+## 模态与 inert
+
+模态弹出层（对话框、警告对话框、模态菜单）打开时让页面其余部分 inert：焦点锁在弹出层内，屏幕阅读器只读到它。需要保持可用的页面元素（聊天入口、密码管理器按钮）用 `persistentElements` 声明：
+
+```tsx
+<Dialog persistentElements={["#chat-launcher"]}>…</Dialog>
+```
+
+## dismiss：Esc、外部按压、返回手势
+
+默认情况下 Esc、外部按压与 Android 返回手势会关闭弹出层。想拦截（例如有未保存更改），设 `dismissible={false}` 并在 `onDismissAttempt` 里询问：
+
+```tsx
+<Dialog
+  dismissible={false}
+  onDismissAttempt={() => setConfirmDiscard(true)}
+>
+  …
+</Dialog>
+```
+
+关闭部件、触发器与控制器始终能关闭，不受 `dismissible` 影响。
+
+## 嵌套与容器
+
+嵌套弹出层留在父弹出层内部，一起关闭、一起定位。需要渲染进 shadow root 或 iframe 时，用 `container` 指定目标元素（Web Components 上接受 CSS 选择器）。
+
+<Aside type="note" title="关闭的弹出层">
+关闭后内容默认卸载；带 `keepMounted` 时保留但隐藏（`hidden`），供动画库驱动退场。无论哪种，`data-open` / `data-closed` 都如实反映状态。
+</Aside>
+
+## 试一试
+
+<DocDemo name="popover" />

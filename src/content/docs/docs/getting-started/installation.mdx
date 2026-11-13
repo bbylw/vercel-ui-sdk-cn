@@ -1,0 +1,63 @@
+---
+title: "安装"
+description: "把 ui-sdk 装进你的项目：核心包加一个框架包，声明样式层，然后开始组合组件。"
+sidebar:
+  order: 1
+---
+
+ui-sdk 由两部分组成：`@ui-sdk/core` 提供与框架无关的行为（键盘导航、焦点、选择、弹出层定位、ARIA），框架包把这些行为绑定到 React、Vue、Svelte、Solid 或 Web Components 的组件上。组件本身不渲染任何样式。
+
+## 安装依赖
+
+安装核心包和你所用框架的包。以 React 为例：
+
+<PackageManagers pkg="@ui-sdk/react @ui-sdk/core" />
+
+其他框架把 `@ui-sdk/react` 换成对应的包：
+
+| 框架 | 包 |
+| --- | --- |
+| React | `@ui-sdk/react` |
+| Vue | `@ui-sdk/vue` |
+| Svelte | `@ui-sdk/svelte` |
+| Solid | `@ui-sdk/solid` |
+| Web Components | `@ui-sdk/web` |
+
+<Aside type="note" title="按入口导入">
+每个组件都有独立入口，例如 `@ui-sdk/react/select`。框架包没有根入口，不要从 `@ui-sdk/react` 直接导入组件。
+</Aside>
+
+## 声明样式层
+
+ui-sdk 的可选默认外观放在 `@layer ui-sdk` 中。在全局样式表最顶部声明这一层，让它优先级低于你自己的样式：
+
+```css title="globals.css"
+@layer ui-sdk;
+@import "tailwindcss";
+```
+
+如果你使用 Tailwind，把 `@layer ui-sdk;` 放在 `@import "tailwindcss"` 之前。这样你的工具类和自定义 CSS 始终覆盖默认外观。
+
+## 可选的默认外观
+
+想要一个开箱即用的基础样子，引入核心包自带的样式：
+
+```ts
+import "@ui-sdk/core/web.css";
+```
+
+不引入也完全可用：组件只输出结构与 `data-*` 状态属性，外观全部由你的设计系统决定。参见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## 下一步
+
+<Steps>
+  <Step title="组合第一个组件">
+    跟着[第一个组件](/docs/getting-started/first-component)把一个开关跑起来。
+  </Step>
+  <Step title="理解组合方式">
+    阅读[部件与组合](/docs/concepts/parts-and-composition)，了解根组件与部件的关系。
+  </Step>
+  <Step title="浏览组件">
+    在[组件总览](/docs/components)里按分类查找你需要的行为。
+  </Step>
+</Steps>

@@ -1,0 +1,115 @@
+---
+title: "控制器"
+description: "用控制器从组件树之外打开、关闭、读值：createXController 与 createConfirm。"
+sidebar:
+  order: 5
+---
+
+有时触发器不在组件旁边：一个全局快捷键、一行表格的操作列、一段异步流程结束后要打开对话框。**控制器**让你从任何地方命令组件，而不必把状态提升到共同祖先。
+
+## 创建与连接
+
+```tsx
+import { createDialogController } from "@ui-sdk/react/dialog";
+
+const editor = createDialogController();
+
+// 组件树里
+<Dialog controller={editor}>…</Dialog>
+
+// 任何地方
+editor.open();
+editor.close();
+editor.isOpen();
+```
+
+把同一个控制器传给根，或传给树外的触发器（`controller` 属性），两者即连到同一实例。
+
+## 命令式确认
+
+确认对话框有两种用法，都能在事件处理器里 `await` 一个布尔答案。
+
+**共享 confirm**：直接导入 `confirm`，它自带一个渲染到 `<OverlayHost />` 的对话框，适合「标题 + 描述 + 确认」这类标准问法。整个应用放一个 `OverlayHost` 即可：
+
+```tsx
+import { confirm } from "@ui-sdk/react/alert-dialog";
+import { OverlayHost } from "@ui-sdk/react/overlays";
+
+async function removeProject(id: string) {
+  const ok = await confirm({
+    title: "删除这个项目？",
+    description: "项目及其全部部署将被永久移除。",
+    confirmLabel: "删除",
+  });
+  if (ok) await api.delete(id);
+}
+
+// 应用根部渲染一次
+<OverlayHost />;
+```
+
+**createConfirm**：需要自定义外观、或让多行共用一个对话框时，用 `createConfirm<Payload>()` 创建一次，把它的 `controller` 传给你自己的 `AlertDialog`，内容通过渲染函数读取 `state.payload`：
+
+```tsx
+import {
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+  createConfirm,
+} from "@ui-sdk/react/alert-dialog";
+
+function Projects() {
+  const [confirm] = React.useState(() => createConfirm<{ name: string }>());
+
+  async function remove(name: string) {
+    if (!(await confirm({ name }))) return;
+    await api.delete(name);
+  }
+
+  return (
+    <>
+      {projects.map((name) => (
+        <button key={name} onClick={() => remove(name)}>
+          删除 {name}
+        </button>
+      ))}
+      <AlertDialog controller={confirm.controller}>
+        <AlertDialogBackdrop />
+        <AlertDialogContent<{ name: string }>>
+          {(state) => (
+            <>
+              <AlertDialogTitle>删除 {state.payload?.name}？</AlertDialogTitle>
+              <AlertDialogDescription>
+                项目及其文件将对团队所有人删除。
+              </AlertDialogDescription>
+              <AlertDialogClose>取消</AlertDialogClose>
+              <AlertDialogClose value="confirm">删除</AlertDialogClose>
+            </>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+```
+
+带 `value="confirm"` 的 `AlertDialogClose` 关闭时 `await` 解析为 `true`；取消、Escape 及其他答案解析为 `false`。对同一个 confirm 的多次调用会排队，前一个有答案后一个才出现。
+
+## 变更选项
+
+控制器的写方法接受可选的 reason，会出现在变更回调的 `details.reason` 里，便于区分「用户点的」和「代码设的」：
+
+```tsx
+select.setValue("email", { reason: "restore-draft" });
+```
+
+<Aside type="tip" title="控制器与智能体">
+控制器是命令式入口，智能体桥是声明式入口（`agent.act`）。两者最终走同一套组件 API，因此校验与取消逻辑对二者一致生效。参见[连接智能体](/docs/agents/connect)。
+</Aside>
+
+## 各组件的控制器
+
+每个弹出层与有值组件都提供对应的 `create…Controller()`，方法见各组件页「API Reference」。例如选择器有 `open / close / setValue / getValue / isOpen`，对话框有 `open / close / isOpen`。

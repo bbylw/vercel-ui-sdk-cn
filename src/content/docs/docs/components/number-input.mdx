@@ -1,0 +1,163 @@
+---
+title: "数字输入"
+description: "NumberInput 输入数量、价格与度量值：步进按钮、键盘步进、拖拽调值、按地区格式化，提交的始终是纯数字。"
+sidebar:
+  order: 32
+---
+
+`NumberInput`（数字输入）用于数量、价格、尺寸这类数值。它内部保存数字值，界面上显示格式化后的文本，支持键盘步进、加减按钮，以及按住标签横向拖拽调值。只需要普通文本时用[输入框](/docs/components/input)；需要在连续区间里拖动取值时用[滑块](/docs/components/slider)。
+
+## 组合
+
+```text
+NumberInput
+├── NumberInputScrubArea
+│   └── NumberInputScrubAreaCursor
+└── NumberInputGroup
+    ├── NumberInputDecrement
+    ├── NumberInputControl
+    └── NumberInputIncrement
+```
+
+`NumberInput` 持有数值；`NumberInputGroup` 是输入框与步进按钮的外框；`NumberInputControl` 渲染真正的文本输入；`NumberInputDecrement` 与 `NumberInputIncrement` 减一或加一，按住会连续步进。`NumberInputScrubArea` 可选，拖拽它即可改值。输入合法且在范围内的文本会立即更新值；`Enter` 或失焦时提交：解析文本、夹到边界、对齐到 `step`、再格式化显示。输入为空时值是 `null`。
+
+## 用法
+
+```tsx
+import { NumberInput, NumberInputControl, NumberInputDecrement, NumberInputGroup, NumberInputIncrement } from "@ui-sdk/react/number-input";
+
+<NumberInput defaultValue={1} min={0}>
+  <NumberInputGroup>
+    <NumberInputDecrement aria-label="减少">-</NumberInputDecrement>
+    <NumberInputControl aria-label="数量" />
+    <NumberInputIncrement aria-label="增加">+</NumberInputIncrement>
+  </NumberInputGroup>
+</NumberInput>;
+```
+
+放进[字段](/docs/components/field)里可用 `FieldLabel` 提供可见标签、`FieldDescription` 提供说明、`FieldError` 显示校验信息，此时不必再写 `aria-label`。
+
+## 步进与边界
+
+`min` / `max` 限定范围：到达边界时对应方向的按钮自动禁用，手动输入的越界值在提交时被夹回边界。`step` 是常规步长，默认 1，从 `min` 起算（没有 `min` 时从 0 起算）；`largeStep` 默认十个步长，`smallStep` 默认步长的十分之一（`step / 10`）。
+
+```tsx
+<NumberInput defaultValue={1.5} min={0} max={24} step={0.25} largeStep={1} smallStep={0.05}>
+  <NumberInputGroup>
+    <NumberInputControl aria-label="工时" />
+  </NumberInputGroup>
+</NumberInput>
+```
+
+按方向键走 0.25，按住 `Shift` 走 1，按住 `Alt`（Mac 上是 Option）走 0.05，`Home` / `End` 直达 0 与 24。步长网格与[滑块](/docs/components/slider)一致：`End` 与加号按钮停在不超过 `max` 的最大整步上。
+
+## 格式化与地区
+
+`format` 接收 `Intl.NumberFormat` 选项，显示与解析都用这套格式，值本身仍是数字。百分比按分数存储：显示 `15%`，值是 `0.15`，此时 `step` 默认取格式能显示的最小百分比（整数百分比是 `0.01`，两位小数是 `0.0001`）。
+
+```tsx
+<NumberInput defaultValue={19.99} min={0} step={0.01} locale="zh-CN" format={{ style: "currency", currency: "CNY" }}>
+  <NumberInputGroup>
+    <NumberInputControl aria-label="价格" />
+  </NumberInputGroup>
+</NumberInput>
+```
+
+`locale` 决定分隔符、货币符号与分组方式。不传时跟随页面 `lang`，没有 `lang` 则在客户端激活后跟随浏览器语言；未显式指定时服务端标记使用英文格式，首屏格式很重要时请显式传入，参见[服务端渲染](/docs/concepts/server-rendering)。
+
+## 拖拽调值与滚轮
+
+`NumberInputScrubArea` 把任意元素变成调值手柄，常见做法是包住标签，或包住输入框里的一个字母、图标。向右、向上增大；`orientation` 选择轴向，`pixelsPerStep` 决定每一步需要移动多少 CSS 像素，拖拽时同样支持 `Shift` 与 `Alt` 的大、小步长。
+
+```tsx
+<NumberInput defaultValue={120}>
+  <NumberInputScrubArea pixelsPerStep={1} orientation="horizontal">
+    <span>X 坐标</span>
+  </NumberInputScrubArea>
+  <NumberInputGroup>
+    <NumberInputControl aria-label="X 坐标" />
+  </NumberInputGroup>
+</NumberInput>
+```
+
+支持指针锁定时，拖拽可以越过屏幕边缘继续，`NumberInputScrubAreaCursor` 在锁定期间绘制替代光标。它被放在 `body` 上并用内联 transform 定位，用负 margin 让图标居中。想把手柄放在组件之外（例如工具栏图标），给两者传同一个控制器即可，一个字段可以有多个拖拽区。
+
+`wheel` 默认关闭；打开后，仅在输入框获得焦点时滚轮才步进值。
+
+## 受控、提交与控制器
+
+```tsx
+const [value, setValue] = React.useState<number | null>(2);
+
+<NumberInput value={value} min={1} onValueChange={setValue} onValueCommit={save}>
+  …
+</NumberInput>;
+```
+
+`onValueChange` 在交互过程中每次合法变化时触发，`details.cancel()` 可拦截；`onValueCommit` 只在一次交互结束后触发一次（输入提交、步进键或按钮松开、拖拽结束），适合保存与请求。`details.reason` 区分 `input-commit`、`step-key`、`increment-press`、`wheel`、`scrub` 等来源，参见[状态与事件](/docs/concepts/state-and-events)。
+
+要从组件树外操作，用 `createNumberInputController()` 创建控制器传给根，调用 `getValue / setValue / increment / decrement / focus`，写入方法接受 `{ large: true }` 使用大步长。参见[控制器](/docs/concepts/controllers)。
+
+## 样式与状态
+
+每个部件都有 `data-slot`，状态用 `data-*` 表达：
+
+- 所有部件：`data-disabled`、`data-readonly`、`data-required`；拖拽进行中所有部件都带 `data-scrubbing`。
+- 步进按钮：到达自身方向的边界时带 `data-at-bound`，同时带 `data-disabled`。
+- 拖拽区：`data-orientation="horizontal" | "vertical"`。
+- 在[字段](/docs/components/field)内，原生输入还会收到 `data-invalid` 等校验属性。
+
+```css
+[data-slot="number-input-group"] {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+[data-slot="number-input-group"][data-scrubbing] { border-color: var(--color-brand); }
+[data-slot="number-input-increment"][data-at-bound] { opacity: 0.4; }
+```
+
+把外框 `number-input-group` 当作字段的盒子来画，内部输入与按钮只做间距与对齐，间距用逻辑属性写，布局才能跟随书写方向。详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+`NumberInput` 常用属性：
+
+| 属性 | 类型 | 说明 |
+| --- | --- | --- |
+| `value` | `number \| null` | 受控值，`null` 表示空。 |
+| `defaultValue` | `number \| null` | 非受控初始值，表单重置会回到它。 |
+| `onValueChange` | `(value, details) => void` | 交互中值变化时触发，可 `details.cancel()`。 |
+| `onValueCommit` | `(value, details) => void` | 一次交互结束后触发，用于保存。 |
+| `min` / `max` | `number` | 边界，提交时夹取越界输入。 |
+| `step` / `largeStep` / `smallStep` | `number` | 常规、大、小步长。 |
+| `format` | `Intl.NumberFormatOptions` | 显示与解析格式。 |
+| `locale` | `string` | 格式化与解析使用的地区。 |
+| `wheel` | `boolean` | 聚焦时允许滚轮步进，默认关闭。 |
+| `name` / `form` | `string` | 提交字段名；关联页面中其他表单的 id。 |
+| `disabled` / `readOnly` / `required` | `boolean` | 禁用、只读、必填。 |
+| `controller` | `object` | `createNumberInputController()` 创建的控制器。 |
+
+`NumberInputScrubArea`：`orientation`（`"horizontal" | "vertical"`）、`pixelsPerStep`（`number`）、`controller`（连接外部手柄）。`NumberInputIncrement` 与 `NumberInputDecrement` 各自接受 `disabled`，只关掉这一个方向。
+
+表单提交的是纯数字：显示 `¥4.50` 仍提交 `4.5`，空值提交空字符串。`disabled` 不提交也不可聚焦，`readOnly` 可聚焦、可提交但不能改，`<fieldset disabled>` 会向下继承。参见[表单](/docs/concepts/forms)。
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA spinbutton 模式，底层是原生文本输入，普通文本编辑（选择、复制、粘贴）照常可用。
+
+| 输入 | 步进量 |
+| --- | --- |
+| `ArrowUp` / `ArrowDown` 或步进按钮 | `step`，默认 1。 |
+| `Shift` + 方向键或按钮；`PageUp` / `PageDown` | `largeStep`，默认十个步长。 |
+| `Alt`（Option）+ 方向键 | `smallStep`，默认步长的十分之一。 |
+| `Home` / `End` | 已设置的最小值或最大值。 |
+
+`Enter` 提交输入的文本。步进按钮不在 Tab 序列里，因为聚焦的输入用方向键就能完成同样的步进。给输入一个 `FieldLabel` 或 `aria-label`，并为两个按钮命名；按钮通过 `aria-controls` 指向输入。
+
+## 相关组件
+
+- [滑块](/docs/components/slider)：在连续区间内拖动取值，可多滑块。
+- [输入框](/docs/components/input)：普通文本输入。
+- [字段](/docs/components/field)：标签、说明与校验信息的容器。

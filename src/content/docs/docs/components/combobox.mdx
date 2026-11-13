@@ -1,0 +1,183 @@
+---
+title: "组合框"
+description: "Combobox 让人键入搜索并从列表里选一个或多个值，文本只是查询，提交的是选项值，支持芯片、异步结果与创建新项。"
+sidebar:
+  order: 23
+---
+
+`Combobox`（组合框）让人通过键入找到选项并选一个或多个值。值是列表里的选项（`multiple` 时为多个），输入框里的文本只是查询：未选择就关闭会恢复已选标签，表单提交的是值而非文本。适合国家、负责人或一组标签。当自由文本才是主要路径时用[自动完成](/docs/components/autocomplete)，选项固定且要紧凑触发器时用[选择器](/docs/components/select)。
+
+## 演示
+
+键入以筛选框架，选中一项后下方显示你的选择：
+
+<DocDemo name="combobox" />
+
+## 组合
+
+```text
+Combobox
+├── ComboboxLabel
+├── ComboboxInput
+└── ComboboxContent
+    └── ComboboxList
+        ├── ComboboxItem
+        └── ComboboxItem
+```
+
+给输入框命名，给每个选项一个唯一 `value`，把选项放进弹出层里的列表。选中一项会把它的标签放进输入框。
+
+## 用法
+
+```tsx
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxItemIndicator,
+  ComboboxLabel,
+  ComboboxList,
+} from "@ui-sdk/react/combobox";
+
+function Example() {
+  return (
+    <Combobox>
+      <ComboboxLabel>框架</ComboboxLabel>
+      <ComboboxInput placeholder="搜索框架…" />
+      <ComboboxContent>
+        <ComboboxEmpty>没有匹配的框架。</ComboboxEmpty>
+        <ComboboxList>
+          <ComboboxItem value="next" label="Next.js">
+            Next.js
+            <ComboboxItemIndicator>✓</ComboboxItemIndicator>
+          </ComboboxItem>
+          <ComboboxItem value="astro" label="Astro">
+            Astro
+            <ComboboxItemIndicator>✓</ComboboxItemIndicator>
+          </ComboboxItem>
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
+  );
+}
+```
+
+键入「as」找到 Astro，按 `ArrowDown` 高亮再按 `Enter` 选中。可加 `ComboboxTrigger` 作为开合按钮。
+
+## 多选与芯片
+
+加 `multiple` 让值变成数组：选中即切换、列表保持打开、每次选择后清空查询。把 `ComboboxValue` 与输入框放进 `ComboboxChips`，每个值渲染成带移除按钮的芯片。空输入框里按 `Backspace` 一次即移除最后一个芯片，方向键在芯片间移动。`keepQuery` 保留查询以便连续选多个匹配，`maxSelected` 限制数量（达到后其余项禁用），起始值的标签未知时提供 `itemToLabel`：
+
+```tsx
+<Combobox multiple defaultValue={["next", "astro"]} itemToLabel={frameworkLabel}>
+  <ComboboxLabel>框架</ComboboxLabel>
+  <ComboboxChips>
+    <ComboboxValue>
+      {(state) =>
+        (state.value as string[]).map((value, index) => (
+          <ComboboxChip key={value} value={value}>
+            {state.labels[index]}
+            <ComboboxChipRemove aria-label={`移除 ${state.labels[index]}`}>×</ComboboxChipRemove>
+          </ComboboxChip>
+        ))
+      }
+    </ComboboxValue>
+    <ComboboxInput placeholder="添加一个框架…" />
+  </ComboboxChips>
+  <ComboboxContent>
+    <ComboboxList>{/* 选项 */}</ComboboxList>
+  </ComboboxContent>
+</Combobox>
+```
+
+`ComboboxChipsOverflow` 可让放不下的芯片折叠并显示隐藏数量；`ComboboxSelectAll` 切换其所在组（或组外）全部可选中的匹配项。
+
+## 创建新选项与自定义值
+
+`ComboboxCreate` 在没有标签精确匹配查询、且达到 `minLength` 时给出「创建」项。`onCreate(query)` 负责保存，返回 Promise 时该项进入 pending（带 `data-pending`、`aria-busy`、`aria-disabled`），resolve 后列表关闭（`multiple` 时清空输入）。创建本身不改变选择，需在保存后自行加入并选中新项：
+
+```tsx
+<ComboboxCreate
+  minLength={2}
+  onCreate={async (query) => {
+    await saveLabel(query);
+    setLabels((list) => [...list, query]);
+    setValue((list) => [...list, query]);
+  }}
+>
+  {(state) => (state.pending ? `正在创建「${state.query}」…` : `创建「${state.query}」`)}
+</ComboboxCreate>
+```
+
+若建议只是可选（类似 datalist），用 `allowCustomValue`：无高亮项按 `Enter` 或列表关闭时，未匹配文本本身成为值，但不会在集合里新建项。
+
+## 过滤、分组与异步
+
+`filter` 控制键入如何收窄列表：`"contains"`、`"startsWith"`、自定义函数（数值结果还用于排序），或 `false` 保留全部（服务端已过滤）。把整套选项作为 `items` 传入即由组件渲染并过滤，`emptyItems` 在输入为空时改显示最近选择；分组用 `{ type: "group", label, items }` 或 `ComboboxGroup` / `ComboboxGroupLabel`。`autoHighlight` 键入时高亮第一条匹配（`"always"` 还在打开时高亮已选或首项）。异步搜索用 `status` 驱动 `ComboboxStatus` 与 `ComboboxEmpty`，`onLoadMore` 在到达最后一项时加载下一页，`announcement` 自定义屏幕阅读器播报。
+
+## 受控与控制器
+
+值用 `value` / `onValueChange` 控制，输入文本用 `query` / `onQueryChange`，开合用 `open` / `onOpenChange`，三者独立。回调先收到提议值再收到 details，`details.cancel()` 可拒绝。对象值用 `itemToValue`、`itemToLabel`、`isItemEqualToValue` 处理标识与比较。`createComboboxController()` 创建的控制器提供 `open / close / toggle / getValue / setValue / clear / getQuery / setQuery / focus / isOpen`。参见[状态与事件](/docs/concepts/state-and-events)与[控制器](/docs/concepts/controllers)。
+
+## 样式与状态
+
+弹出层就地渲染进浏览器顶层。用 `data-highlighted` 表示活动项、`data-selected` 表示已选值；键盘高亮通常不离开输入框，故用内容的 `data-modality="keyboard"` 来画焦点环。输入框与内容带 `data-open` / `data-closed`，内容带 `data-starting-style` / `data-ending-style` 供动画；`ComboboxItemText` 匹配时带 `data-matched`，芯片带 `data-value`，创建项带 `data-pending`。
+
+`ComboboxContent` 暴露 `--anchor-width`（跟随输入框或芯片）、`--available-height`（到视口边缘的可用空间，不继承）、`--transform-origin`：
+
+```css
+[data-slot="combobox-content"] {
+  width: var(--anchor-width);
+  max-height: var(--available-height);
+  transform-origin: var(--transform-origin);
+}
+[data-slot="combobox-item"][data-selected] {
+  color: var(--color-brand);
+}
+[data-slot="combobox-content"][data-modality="keyboard"]
+  [data-slot="combobox-item"][data-highlighted] {
+  background: var(--color-accent);
+}
+```
+
+详见[弹出层](/docs/concepts/popups)与[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+根 `Combobox` 的常用属性：
+
+- `value` / `defaultValue`（`T | T[] | null`）：受控值 / 初始值，`multiple` 时为数组，`null` 表示未选。
+- `onValueChange`（`(value, details) => void`）：值想变更时调用，`details.reason` 说明来源，`details.cancel()` 拦截。
+- `multiple`（`boolean`）：允许多选，值为列表，选择后列表保持打开。
+- `query` / `defaultQuery` / `onQueryChange`（`string`）：输入框文本（查询）。
+- `open` / `defaultOpen` / `onOpenChange`：列表开合。
+- `items` / `emptyItems`（`ListData<T>`）、`filter`（`ListFilter<T>`）：选项数据与过滤。
+- `maxSelected`（`number`）、`keepQuery`（`boolean`）、`autoHighlight`（`"always" | boolean`）、`allowCustomValue`（`boolean`）。
+- `itemToValue` / `itemToLabel` / `isItemEqualToValue`：对象值的标识、标签与相等比较。
+- `status`、`onLoadMore`、`announcement`、`onHighlight`：异步与播报。
+- `name` / `required` / `disabled` / `readOnly`：表单提交与可用性。
+- `controller`（`object`）：用 `createComboboxController()` 创建。
+
+`ComboboxItem` 接受 `value`、`label`、`keywords`、`disabled`、`index`；`ComboboxValue` 接受 `maxLabels`、`getMoreLabel`；`ComboboxCreate` 接受 `onCreate`、`minLength`。
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA 带列表自动完成的 combobox 模式。焦点通常留在输入框，由 `aria-activedescendant` 指明高亮项；触摸屏幕阅读器或 sheet 可把真实焦点移入列表。
+
+| 按键 | 行为 |
+| --- | --- |
+| 键入 | 过滤选项并打开列表 |
+| `ArrowDown` / `ArrowUp` | 打开列表并移动高亮，默认首尾循环（`loop={false}` 关闭） |
+| `Enter` | 选中高亮项 |
+| `Escape` | 关闭列表，随后恢复已选标签 |
+| `Backspace` | 空输入框且有芯片时移除最后一个芯片 |
+| `ArrowLeft` / `ArrowRight` | 在芯片间移动（RTL 文本反向） |
+
+## 相关组件
+
+- [自动完成](/docs/components/autocomplete)：值是自由文本而非选项。
+- [选择器](/docs/components/select)：固定选项、紧凑触发器。
+- [列表框](/docs/components/listbox)：始终展开、无输入框的选择列表。
+- [令牌输入](/docs/components/token-input)：把文本拆成可删除的令牌。

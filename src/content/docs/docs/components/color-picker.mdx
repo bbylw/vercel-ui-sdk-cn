@@ -1,0 +1,171 @@
+---
+title: "颜色选择器"
+description: "ColorPicker 通过拖拽区域与滑块、输入任意 CSS 颜色或选预设来选色，值是一个 CSS 颜色字符串，每个部件都编辑它。"
+sidebar:
+  order: 22
+---
+
+`ColorPicker`（颜色选择器）用来选一个颜色，如品牌色或主题色。值是一个 CSS 颜色字符串，每个部件都编辑同一个值：区域一次改两个通道，滑块每通道一个，文本框可读任意 CSS 颜色，还有预设色板。
+
+## 组合
+
+```text
+ColorPicker
+├── ColorPickerArea
+│   ├── ColorPickerAreaCanvas
+│   └── ColorPickerAreaThumb
+├── ColorPickerSlider
+│   └── ColorPickerSliderThumb
+├── ColorPickerSwatch
+├── ColorPickerInput
+├── ColorPickerChannelInput
+├── ColorPickerEyeDropper
+└── ColorPickerSwatches
+    ├── ColorPickerSwatchItem
+    └── ColorPickerSwatchItem
+```
+
+每个部件都可选，按需用。`ColorPicker` 持有值并作为各部件的分组；`ColorPickerArea` 编辑两个通道（如横向饱和度、纵向亮度），背景由 `--color-area-background` 绘制；`ColorPickerAreaCanvas` 逐像素绘制渐变画不出的通道（如 OKLCH 的 `chroma` 与 `lightness`）；`ColorPickerSlider` 编辑一个 `channel`；`ColorPickerSwatch` 显示当前色；`ColorPickerInput` 在 `Enter` 或失焦时读任意 CSS 颜色；`ColorPickerChannelInput` 以人们读的单位编辑一个通道；`ColorPickerEyeDropper` 从屏幕取色；`ColorPickerSwatches` 与 `ColorPickerSwatchItem` 是预设色列表。每个部件把颜色写为 `--color-picker-color`，选择器还渲染一个供表单提交的隐藏 input。
+
+## 用法
+
+```tsx
+import {
+  ColorPicker,
+  ColorPickerArea,
+  ColorPickerAreaThumb,
+  ColorPickerInput,
+  ColorPickerSlider,
+  ColorPickerSliderThumb,
+} from "@ui-sdk/react/color-picker";
+
+function BrandColor() {
+  return (
+    <ColorPicker aria-label="品牌色" defaultValue="#0ea5e9">
+      <ColorPickerArea>
+        <ColorPickerAreaThumb />
+      </ColorPickerArea>
+      <ColorPickerSlider channel="hue">
+        <ColorPickerSliderThumb />
+      </ColorPickerSlider>
+      <ColorPickerInput aria-label="Hex" />
+    </ColorPicker>
+  );
+}
+```
+
+用 `aria-label` 命名，或放进[字段](/docs/components/field)由其标签命名。不设 `defaultValue` 时从黑色开始。
+
+## 色彩空间与通道
+
+`space` 决定各部件编辑哪些通道、值以什么写法输出：`hsv`（区域为饱和度与亮度，滑块为色相，写为 hex）、`hsl`（区域为饱和度与 `lightness`，滑块为色相）、`srgb`（区域为红与绿，滑块为蓝）、`oklch`（区域为 `chroma` 与 `lightness`，滑块为色相）。`format` 可换写法（如任意空间下 `format="hex"`）。每个空间都有 `alpha` 通道。在区域上设 `x` / `y`、在滑块上设 `channel` 可编辑其他通道：
+
+```tsx
+<ColorPicker aria-label="背景" space="hsl" defaultValue="hsl(220 60% 50%)">
+  <ColorPickerArea x="hue" y="lightness">
+    <ColorPickerAreaCanvas />
+    <ColorPickerAreaThumb />
+  </ColorPickerArea>
+  <ColorPickerSlider channel="saturation" orientation="vertical">
+    <ColorPickerSliderThumb />
+  </ColorPickerSlider>
+</ColorPicker>
+```
+
+颜色变灰或变黑时各部件仍保留色相，因此从角落拖回会回到同一色相。
+
+## OKLCH 与色域
+
+OKLCH 按人眼均匀分布颜色，其可显示边界是一条曲线，渐变画不出，需给区域加 `ColorPickerAreaCanvas` 逐像素绘制。拖拽越过边界时，值已是边界内最接近的颜色，每个部件带 `data-out-of-gamut`；松手后拇指移到该色。默认限制在 sRGB，`gamut="p3"` 允许广色域屏幕的颜色，`gamut={false}` 允许任意颜色：
+
+```tsx
+<ColorPicker aria-label="强调色" space="oklch" gamut="p3" defaultValue="oklch(0.7 0.25 150)">
+  <ColorPickerArea>
+    <ColorPickerAreaCanvas />
+    <ColorPickerAreaThumb />
+  </ColorPickerArea>
+  <ColorPickerSlider channel="hue">
+    <ColorPickerSliderThumb />
+  </ColorPickerSlider>
+</ColorPicker>
+```
+
+## 预设、通道输入与吸管
+
+把 `ColorPickerSwatchItem` 放进 `ColorPickerSwatches` 即预设色板：值等于某预设色时该项选中（无论写法，`#0000ff` 会选中 `rgb(0 0 255)`），列表是一个 tab stop，方向键在预设间移动。`ColorPickerChannelInput` 以数字编辑一个通道，在 `Enter`、失焦或按其箭头时设值。`ColorPickerEyeDropper` 在支持的浏览器里从屏幕取色，不支持时禁用并带 `data-unsupported`，便于隐藏：
+
+```tsx
+<ColorPicker aria-label="标签色" space="srgb" format="hex" defaultValue="#0ea5e9">
+  <ColorPickerSwatches aria-label="预设">
+    {presets.map((preset) => (
+      <ColorPickerSwatchItem key={preset} value={preset} />
+    ))}
+  </ColorPickerSwatches>
+  <ColorPickerChannelInput channel="red" />
+  <ColorPickerEyeDropper aria-label="从屏幕取色">…</ColorPickerEyeDropper>
+</ColorPicker>
+```
+
+## 弹出层与受控
+
+把[弹出层](/docs/components/popover)放进选择器，即可从一个色块打开它：弹出层里的部件编辑同一个颜色，触发器里的 `ColorPickerSwatch` 显示它。值用 `value` / `onValueChange` 受控，`onValueChange` 在拖拽或按键的每一步都运行（`details.color` 是颜色，`details.cancel()` 拦截），`onValueCommit` 在一次交互结束时运行一次（指针抬起、按键、选预设），适合保存。`createColorPickerController()` 创建的控制器提供 `getValue / setValue / focus`，`setValue` 接受任意 CSS 颜色。参见[控制器](/docs/concepts/controllers)。
+
+## 样式与状态
+
+部件无样式，只给拇指必要定位：拇指为 `position: absolute` 并以百分比内联样式定位，用 `translate: -50% -50%` 居中到其点。给区域和滑块一个尺寸及其背景变量。每个部件把颜色写为 `--color-picker-color`，区域背景为 `--color-area-background`，滑块背景为 `--color-slider-background`，区域拇指位置为 `--area-x` / `--area-y`（0 到 1），滑块拇指位置为 `--color-slider-thumb-position`。状态属性有 `data-disabled`、`data-readonly`、`data-required`、`data-out-of-gamut`，滑块带 `data-channel` 与 `data-orientation`，预设项带 `data-selected`：
+
+```css
+[data-slot="color-picker-area"] {
+  width: 200px;
+  height: 150px;
+  background: var(--color-area-background);
+}
+[data-slot="color-picker-area-thumb"],
+[data-slot="color-picker-slider-thumb"] {
+  translate: -50% -50%;
+  background: var(--color-picker-color);
+}
+[data-slot="color-picker-slider"] {
+  background: var(--color-slider-background);
+}
+[data-slot="color-picker-swatch-item"][data-selected] {
+  outline: 2px solid var(--color-brand);
+}
+```
+
+## API
+
+根 `ColorPicker` 的常用属性：
+
+- `value` / `defaultValue`（`string`）：受控值 / 初始值，CSS 颜色如 `"#0ea5e9"`、`"oklch(0.62 0.19 259)"`。
+- `onValueChange`（`(value, details) => void`）：值变化时每一步运行，`details.color` 是颜色，`details.cancel()` 拦截。
+- `onValueCommit`（`(value, details) => void`）：一次交互结束时运行，用于保存。
+- `space`（`"hsv" | "hsl" | "srgb" | "oklch"`）：编辑的色彩空间，决定通道。
+- `format`（`ColorFormat`）：值的写法，如 `"hex"` 或某空间的 CSS 语法。
+- `gamut`（`false | "p3" | …`）：值可持有的色域，默认 sRGB。
+- `disabled` / `readOnly` / `required` / `name`：可用性与表单（始终有值，故 `required` 不会阻止提交）。
+- `controller`（`object`）：用 `createColorPickerController()` 创建。
+
+`ColorPickerArea` 接受 `x` / `y`（`ColorChannel`）；`ColorPickerSlider` 接受 `channel`、`orientation`；`ColorPickerChannelInput` 接受 `channel`；`ColorPickerSwatchItem` 接受 `value`（任意 CSS 颜色）。
+
+## 键盘与无障碍
+
+没有覆盖颜色选择器的 WAI-ARIA 模式，故由已有模式组合：选择器是一个 group，区域拇指与各滑块拇指遵循 slider 模式（区域拇指同时报两个通道，如「饱和度 76%，亮度 96%」），预设遵循 listbox 模式并按颜色命名（如「鲜红」）。拇指、输入框与预设默认以英文命名，传 `aria-label` 可用其他语言命名。
+
+| 按键 | 行为 |
+| --- | --- |
+| 方向键 | 拇指移动一步；区域上 `Left`/`Right` 横向、`Up`/`Down` 纵向 |
+| `Shift` + 方向键 | 移动十步 |
+| `Page Up` / `Page Down` | 移动量程的十分之一 |
+| `Home` / `End` | 移到起点或终点 |
+| `Enter` | 读取输入框文本，或选中聚焦的预设 |
+| `Escape` | 把输入框文本恢复为当前值 |
+
+每次按键都像拖拽结束那样提交一次。
+
+## 相关组件
+
+- [滑块](/docs/components/slider)：单轴数值选择，与通道滑块同源。
+- [弹出层](/docs/components/popover)：从色块打开选择器。
+- [字段](/docs/components/field)：为选择器命名并关联描述。
+- [输入框](/docs/components/input)：纯文本输入。

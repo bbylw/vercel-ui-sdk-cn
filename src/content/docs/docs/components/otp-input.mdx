@@ -1,0 +1,179 @@
+---
+title: "验证码输入"
+description: "OTPInput 输入短信或邮件里的一次性验证码：逐格显示、整段粘贴、自动填充与原生表单校验。"
+sidebar:
+  order: 33
+---
+
+`OTPInput`（验证码输入）用于登录、验证这类短验证码。每个字符占一格，粘贴或系统自动填充的整段验证码会一次填满所有格子。它底层只有一个原生输入，因此选区、撤销、自动填充与表单提交都是浏览器原生行为。普通短文本用[输入框](/docs/components/input)。
+
+## 组合
+
+```text
+OTPInput
+└── OTPInputGroup
+    ├── OTPInputSlot
+    └── OTPInputSlot
+```
+
+`OTPInput` 创建原生输入并持有验证码；`OTPInputGroup` 排列一组格子；每个 `OTPInputSlot` 显示 `index`（从 0 开始）位置上的字符。分段更易读时，在两组之间插入 `OTPInputSeparator`。
+
+分组与分隔符只改变同一个值的呈现，不会增加字段或 Tab 停留点。原生输入带 `autocomplete="one-time-code"`，支持的浏览器与密码管理器可以直接提供收到或保存的验证码。
+
+## 用法
+
+```tsx
+import { OTPInput, OTPInputGroup, OTPInputSeparator, OTPInputSlot } from "@ui-sdk/react/otp-input";
+
+function Example() {
+  return (
+    <OTPInput maxLength={6} aria-label="验证码">
+      <OTPInputGroup>
+        {[0, 1, 2].map((index) => <OTPInputSlot key={index} index={index} />)}
+      </OTPInputGroup>
+      <OTPInputSeparator aria-hidden="true">-</OTPInputSeparator>
+      <OTPInputGroup>
+        {[3, 4, 5].map((index) => <OTPInputSlot key={index} index={index} />)}
+      </OTPInputGroup>
+    </OTPInput>
+  );
+}
+```
+
+输入六位数字，或直接粘贴 `123-456`：分隔符会被剔除，六个字符依次落格。点击任意格子可改写该位。
+
+## 长度、字符与键盘
+
+`maxLength` 是验证码长度，默认 6，需要渲染同样数量的格子。`pattern` 决定接受哪些字符，取 `"digits"`（默认）、`"letters"`、`"alphanumeric"`，或一个逐字符匹配的正则；不符合的输入、粘贴、拖放内容会被忽略。
+
+```tsx
+<OTPInput maxLength={6} pattern={/[0-9A-F]/i} inputMode="text">
+  <OTPInputGroup>
+    {[0, 1, 2, 3, 4, 5].map((index) => <OTPInputSlot key={index} index={index} />)}
+  </OTPInputGroup>
+</OTPInput>
+```
+
+上例只收十六进制字符：输入 `12zzab` 得到 `12ab`。`inputMode` 单独决定触屏键盘（`"decimal"`、`"numeric"`、`"tel"`、`"text"`、`"none"`），预设 `pattern` 会自动选择合适的键盘。`textAlign` 决定隐藏输入把文本与光标放在哪里（`"start"`、`"center"`、`"end"`），这会影响手机粘贴菜单等浏览器自带浮层的位置。
+
+## 填满即提交
+
+`onValueCommit` 在一次变更填满所有格子时触发，输入、粘贴、自动填充、控制器写入都算；已填满后替换字符会再次触发，表单重置与浏览器状态恢复不会。适合在这里直接发起校验请求。
+
+```tsx
+<OTPInput maxLength={6} aria-label="验证码" onValueCommit={(value, details) => verify(value, details.reason)}>
+  <OTPInputGroup>
+    {[0, 1, 2, 3, 4, 5].map((index) => <OTPInputSlot key={index} index={index} />)}
+  </OTPInputGroup>
+</OTPInput>
+```
+
+## 受控与控制器
+
+```tsx
+const [value, setValue] = React.useState("");
+
+<OTPInput value={value} onValueChange={setValue}>
+  …
+</OTPInput>;
+```
+
+传入的值同样会被 `pattern` 过滤并截断到 `maxLength`。`details.reason` 区分 `input-change`（键入、自动填充、键盘候选）、`paste`、`undo` / `redo`、`reset`、`restore` 与 `imperative`；`details.cancel()` 保留原值。参见[状态与事件](/docs/concepts/state-and-events)。
+
+用 `createOTPInputController()` 创建控制器传给根，可在组件树外调用 `getValue / setValue / clear / focus`；写入方法接受 `{ reason, event }`，被取消或值未变化时返回 `false`。参见[控制器](/docs/concepts/controllers)。
+
+## 表单与校验
+
+给根传 `name`，验证码进入 `FormData`。`required` 阻止空值提交，输入到一半的验证码按长度校验失败并报 `tooShort`；默认值或控制器写入的不完整值走原生输入的 pattern 校验，因为浏览器不对这类值应用 minlength。`form` 可把表单外的控件关联到某个表单 id，重置回到 `defaultValue`。
+
+服务端拒绝验证码时，把[字段](/docs/components/field)标为 `invalid`，它会为输入加上 `aria-invalid` 并关联 `FieldError`：
+
+```tsx
+<Field invalid={invalid}>
+  <FieldLabel>验证码</FieldLabel>
+  <OTPInput defaultValue="482913" onValueChange={() => setInvalid(false)}>
+    <OTPInputGroup>
+      {[0, 1, 2, 3, 4, 5].map((index) => <OTPInputSlot key={index} index={index} />)}
+    </OTPInputGroup>
+  </OTPInput>
+  <FieldError>验证码已过期，请重新获取。</FieldError>
+</Field>
+```
+
+不在字段内时，自己传 `aria-invalid` 与 `aria-describedby`。`disabled` 不可聚焦也不提交，`readOnly` 可聚焦、可提交但不能改。参见[表单](/docs/concepts/forms)。
+
+## 样式与状态
+
+原生输入透明覆盖在格子之上，格子的外观全靠状态属性：
+
+- 根与分组：`data-filled`（已有字符）、`data-complete`（全部填满）、`data-focused`、`data-disabled`。
+- 格子：`data-filled`、`data-active`（当前键入落点，仅聚焦时）、`data-fake-caret`（当前格为空、需要自绘光标，真实光标已隐藏）、`data-disabled`。
+- 分隔符：`data-disabled`。
+
+每个格子保持 `position: relative`，自绘光标才不会跑出去：
+
+```css
+[data-slot="otp-input-slot"] {
+  position: relative;
+  width: 2.5rem;
+  height: 3rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+[data-slot="otp-input-slot"][data-active] {
+  border-color: var(--color-brand);
+}
+[data-slot="otp-input-slot"][data-fake-caret]::after {
+  content: "";
+  position: absolute;
+  inset-block: 25%;
+  inset-inline-start: 50%;
+  width: 1px;
+  background: currentColor;
+  animation: otp-caret 1s steps(1) infinite;
+}
+@keyframes otp-caret {
+  50% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="otp-input-slot"][data-fake-caret]::after {
+    animation: none;
+  }
+}
+```
+
+需要完全自绘时，根的状态里有 `slots` 数组，每格的状态提供 `char`、`active`、`hasFakeCaret`、`index`，参见[部件与组合](/docs/concepts/parts-and-composition)。
+
+## API
+
+`OTPInput` 常用属性（`id`、`autoFocus`、`aria-label`、`aria-labelledby`、`aria-describedby`、`aria-invalid` 直接落到原生输入上）：
+
+| 属性 | 类型 | 说明 |
+| --- | --- | --- |
+| `value` / `defaultValue` | `string` | 受控值与非受控初始值。 |
+| `onValueChange` | `(value, details) => void` | 值变化时触发，可 `details.cancel()`。 |
+| `onValueCommit` | `(value, details) => void` | 变更填满所有格子时触发，收到完整验证码。 |
+| `maxLength` | `number` | 验证码长度，默认 6。 |
+| `pattern` | `"digits" \| "letters" \| "alphanumeric" \| RegExp` | 逐字符过滤规则。 |
+| `inputMode` | `"decimal" \| "numeric" \| "tel" \| "text" \| "none"` | 触屏键盘类型。 |
+| `textAlign` | `"start" \| "center" \| "end"` | 隐藏输入的文本与光标位置。 |
+| `autoComplete` | `string` | 原生 `autocomplete`，默认支持 `"one-time-code"`。 |
+| `name` / `form` | `string` | 提交字段名与关联表单 id。 |
+| `disabled` / `readOnly` / `required` | `boolean` | 禁用、只读、必填。 |
+| `controller` | `object` | `createOTPInputController()` 创建的控制器。 |
+
+`OTPInputSlot` 只有一个必填属性 `index`（`number`），表示它显示第几个字符。
+
+## 键盘与无障碍
+
+用 `FieldLabel`、原生 label、`aria-label` 或 `aria-labelledby` 为输入命名。屏幕阅读器只会遇到一个包含完整验证码的输入，格子、分组与分隔符对它隐藏。
+
+输入保留原生按键：方向键、`Home`、`End` 在格子间移动选区，`Backspace` 删除字符，系统撤销与重做快捷键照常可用，粘贴 `123-456` 这类带分隔符的文本会自动清理。填满后再输入会替换当前选中的格子。
+
+## 相关组件
+
+- [输入框](/docs/components/input)：普通单行文本输入。
+- [密码输入](/docs/components/password-input)：需要遮罩与显隐切换的敏感输入。
+- [字段](/docs/components/field)：标签、说明与错误信息。

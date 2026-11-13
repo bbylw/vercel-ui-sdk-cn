@@ -1,0 +1,149 @@
+---
+title: "评分"
+description: "Rating 用一排星星打分或展示分数：半星、指针预览、可清除，只读时作为一张图片被朗读。"
+sidebar:
+  order: 36
+---
+
+`Rating`（评分）用来收集分数（这次入住体验如何）或展示分数（平均评分）。每颗星本质上是一个单选框，因此它的行为与[单选框](/docs/components/radio)组一致：只有一个值、只有一个 Tab 停留点。需要在数值区间里连续取值时用[滑块](/docs/components/slider)。
+
+## 组合
+
+```text
+Rating
+└── RatingItem
+```
+
+`Rating` 会把它的 children 按星星数量重复渲染，所以里面只放**一个** `RatingItem`。不传 children 时，它渲染没有图标的 `RatingItem`。
+
+## 用法
+
+```tsx
+import { Rating, RatingItem } from "@ui-sdk/react/rating";
+
+<Rating aria-label="评分" defaultValue={3}>
+  <RatingItem><span aria-hidden="true">★</span></RatingItem>
+</Rating>;
+```
+
+用 `aria-label` 为评分命名，或放进[字段](/docs/components/field)里由 `FieldLabel` 命名。不传 `defaultValue` 时初始没有分数，`Tab` 落在第一颗星上。选星星的 radio 覆盖在图标之上，图标自己不需要任何事件。
+
+## 填充与半星
+
+每颗星都知道当前显示的分数覆盖了自己多少：CSS 变量 `--rating-fill` 从 0 到 1，`data-filled` 标记被完全覆盖的星，`data-partial` 标记分数落在中间的那颗星。
+
+```css
+[data-slot="rating-item"] {
+  color: var(--color-border);
+}
+[data-slot="rating-item"][data-filled] {
+  color: var(--color-warning);
+}
+[data-slot="rating-item"][data-partial] > span {
+  background: linear-gradient(to right, var(--color-warning) calc(var(--rating-fill) * 100%), var(--color-border) 0);
+  background-clip: text;
+  color: transparent;
+}
+```
+
+`step={0.5}` 把每颗星分成两半，每一半都是独立的 radio，名字类似「2.5 星」，点星的左半边就选半分。也可以把 children 写成函数，按这一项的状态渲染：
+
+```tsx
+<Rating aria-label="评分" step={0.5} defaultValue={3.5}>
+  <RatingItem>
+    {({ fill }) => <span aria-hidden="true">{fill === 1 ? "★" : "☆"}</span>}
+  </RatingItem>
+</Rating>
+```
+
+项的状态提供 `index`（从 1 开始）、`fill`、`checked`、`highlighted`、`disabled`、`readOnly`。
+
+## 指针预览与清除
+
+指针在星星上移动时会预览它下面的分数：`--rating-fill` 跟随指针，`data-highlighted` 标记预览覆盖到的星星，移开后恢复显示真实分数。触屏没有预览，轻点直接落分。
+
+`deselectable` 允许清除分数：再次点击已选中的那颗星，或在它上面按 `Space`，值回到 `null`。
+
+```tsx
+<Rating aria-label="评分" defaultValue={4} deselectable>
+  <RatingItem><span aria-hidden="true">★</span></RatingItem>
+</Rating>
+```
+
+## 只读展示平均分
+
+`readOnly` 用来展示不可修改的分数，任意小数都能显示，例如 4.2 会让第五颗星填充五分之一。此时整个评分对屏幕阅读器是一张图片，内部 radio 被隐藏，名字应由 `getValueLabel` 提供，这样名字里带上分数（用 `aria-label` 会把它覆盖掉）。
+
+```tsx
+<Rating value={4.2} readOnly getValueLabel={(value, max) => `评分 ${value} 分，满分 ${max} 分`}>
+  <RatingItem><span aria-hidden="true">★</span></RatingItem>
+</Rating>
+```
+
+`disabled` 则让每颗星都不可聚焦、不可修改，且不提交值。
+
+## 受控、控制器与表单
+
+```tsx
+const [value, setValue] = React.useState<number | null>(null);
+
+<Rating aria-label="评分" value={value} max={10} loop onValueChange={(next) => setValue(next)}
+  getValueLabel={(value, max) => `${max} 分中的 ${value} 分`}>
+  <RatingItem />
+</Rating>;
+```
+
+`max` 设置星星数量，`loop` 让方向键首尾循环，`getValueLabel(value, max)` 为每个 radio 命名（默认输出类似「3 星」）。`details.reason` 区分 `item-press`、`list-navigation`、`reset`、`restore` 与 `imperative`，`details.cancel()` 保留当前分数。用 `createRatingController()` 创建控制器可调用 `getValue / setValue / focus`，每个挂载的评分用各自的控制器；禁用与只读时 `setValue` 无效。参见[控制器](/docs/concepts/controllers)。
+
+每个 radio 都带一个隐藏的原生 radio，所以评分参与表单：传 `name` 才提交分数，没有 `name` 或没有分数时不提交任何数据；`required` 在没有分数时阻止提交并给出浏览器提示，`form` 关联其他表单 id，重置回到 `defaultValue`。参见[表单](/docs/concepts/forms)。
+
+## 样式与状态
+
+- 根 `rating`：`data-disabled`、`data-readonly`、`data-required`。
+- 星 `rating-item`：`data-filled`（整颗被覆盖）、`data-partial`（部分覆盖）、`data-checked`（分数落在这颗）、`data-highlighted`（指针预览覆盖到）、`data-disabled`、`data-readonly`。
+- CSS 变量：`rating-item` 上的 `--rating-fill`，取值 0 到 1，表示这颗星被覆盖的比例。
+
+```css
+[data-slot="rating-item"][data-highlighted] { color: var(--color-warning); }
+[data-slot="rating"][data-readonly] [data-slot="rating-item"] { cursor: default; }
+```
+
+半星与平均分都靠 `calc(var(--rating-fill) * 100%)` 来画，例如渐变加星形遮罩，或上面对文字裁剪渐变的写法。详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+`Rating` 常用属性：
+
+| 属性 | 类型 | 说明 |
+| --- | --- | --- |
+| `value` | `number \| null` | 受控分数，`null` 表示还没打分。 |
+| `defaultValue` | `number \| null` | 非受控初始分数，重置回到它。 |
+| `onValueChange` | `(value, details) => void` | 分数将要变化时触发，可取消。 |
+| `max` | `number` | 星星数量。 |
+| `step` | `number` | 最小变化量，以星为单位，`0.5` 即半星。 |
+| `deselectable` | `boolean` | 再次点击已选中的星可清除分数。 |
+| `readOnly` / `disabled` | `boolean` | 只读展示、完全禁用。 |
+| `required` | `boolean` | 没有分数时阻止提交。 |
+| `name` / `form` | `string` | 提交字段名（不传则不提交）与关联表单 id。 |
+| `loop` | `boolean` | 方向键是否首尾循环。 |
+| `getValueLabel` | `(value, max) => string` | 为每个 radio 与只读评分命名。 |
+| `controller` | `object` | `createRatingController()` 创建的控制器。 |
+
+根的状态还提供 `highlighted`（`number | null`），即指针正在预览的分数。
+
+## 键盘与无障碍
+
+评分是一个 radio 组，遵循 WAI-ARIA radio group 模式。每颗星为它能选的每个分数持有一个 `radio` 角色的按钮，以及参与表单的隐藏原生 radio；星形图标要加 `aria-hidden`，因为 radio 本身已有名字。只读评分改用 `img` 角色，名字来自 `getValueLabel`。
+
+| 按键 | 行为 |
+| --- | --- |
+| `Tab` | 进入评分，落在已选中的星或第一颗，整组只停一次。 |
+| 方向键 | 按 `step` 移到上一个或下一个分数并选中，默认停在两端，`loop` 时循环。 |
+| `Space` | 选中当前星；若已选中且设了 `deselectable`，则清除分数。 |
+| `Enter` | 提交所在表单。 |
+
+## 相关组件
+
+- [单选框](/docs/components/radio)：同样的一选一模型，选项是文字。
+- [滑块](/docs/components/slider)：在连续区间里取值。
+- [字段](/docs/components/field)：标签、说明与校验信息。

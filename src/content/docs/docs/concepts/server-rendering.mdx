@@ -1,0 +1,98 @@
+---
+title: "服务端渲染"
+description: "ui-sdk 在服务端输出含 ARIA 状态与键盘焦点的初始 HTML，水合再接上交互；了解 use client 边界、偏好首屏与 ID 一致性。"
+sidebar:
+  order: 7
+---
+
+ui-sdk 的部件在服务端渲染初始 HTML，包括 ARIA 状态与键盘 tab 焦点；水合（hydration）在浏览器里接上事件处理器。因此首屏就有正确的语义与可访问性，原生 HTML 行为（如表单提交）甚至在水合前就能工作。
+
+## 从服务端组件渲染
+
+在支持 React Server Components 的应用（如 Next.js）里，可以直接从服务端页面渲染 ui-sdk 组件——它们的模块已自带 `"use client"`：
+
+```tsx
+import { Toggle } from "@ui-sdk/react/toggle";
+
+function Page() {
+  return <Toggle defaultPressed>加粗</Toggle>;
+}
+```
+
+服务端发出一个带 `aria-pressed="true"` 的按钮，水合后即可切换。
+
+## 服务端里的包装器
+
+只渲染标记的包装器可以留在服务端。`renderElement` 让它支持与别的部件相同的 `render` 属性：
+
+```tsx
+import { renderElement, type PartProps } from "@ui-sdk/react/primitive";
+
+function Card({ render, ...props }: PartProps<"div">) {
+  return renderElement("div", { ...props, "data-card": "" }, render);
+}
+
+<Card render={<section />} className="card">
+  你的套餐将于 5 月 1 日续订。
+</Card>;
+```
+
+用 `usePrimitive`、`usePart` 或 `createParts` 构建的自定义部件要放在客户端模块里，服务端组件再渲染这些导出的部件。参见[行为与自定义组件](/docs/core)。
+
+## 加上你的客户端边界
+
+如果你的组件持有 React 状态、回调或渲染函数，在它的入口文件顶部加 `"use client"`：
+
+```tsx title="mute-button.tsx"
+"use client";
+
+import { Toggle } from "@ui-sdk/react/toggle";
+import { useState } from "react";
+
+export function MuteButton() {
+  const [muted, setMuted] = useState(false);
+  return (
+    <>
+      <Toggle pressed={muted} onPressedChange={setMuted}>
+        静音
+      </Toggle>
+      <output>{muted ? "声音已关" : "声音已开"}</output>
+    </>
+  );
+}
+```
+
+从服务端页面渲染 `MuteButton`。普通回调与渲染函数要留在客户端边界内，它们不能作为属性从服务端组件跨过来。
+
+## 偏好与存储
+
+配色方案、emoji 肤色这类偏好保存在浏览器里，服务端无法渲染。把 `Preferences` 放在 `<body>` 顶部：服务端会渲染一段内联脚本作为它的第一个子节点，在页面加载时（水合前）把每个已保存的值写到 `data-*` 属性上，于是选择这些属性的 CSS 从首帧起就正确。
+
+```tsx title="app-preferences.tsx"
+"use client";
+
+import { Preferences } from "@ui-sdk/react/preferences";
+import { colorScheme, skinTone } from "./preferences";
+
+export function AppPreferences({ children }: { children: React.ReactNode }) {
+  return <Preferences preferences={[colorScheme, skinTone]}>{children}</Preferences>;
+}
+```
+
+`global: true` 的偏好写在 `<html>` 上，脚本在水合前设置它，所以 `<html>` 需要 `suppressHydrationWarning`。若你的 CSP 只允许带 nonce 的内联脚本，给 `Preferences` 传 `nonce`。
+
+通过 `usePreference` 读取偏好的内容，服务端渲染默认值、水合后立即换成已保存值。首屏必须正确的地方，改用属性选择器写样式。保存在 cookie 里的偏好可以在服务端读取请求的 `Cookie` 头并传给根部，从而连内容一起服务端渲染。详见[偏好设置](/docs/components/preferences)。
+
+## 让首屏渲染一致
+
+服务端与客户端用相同的初始值。浏览器独有的值放到 effect 或事件处理器里、水合之后再读。
+
+**ID**：部件为它们的关系生成 ID（如对话框触发器的 `aria-controls`、字段标签的 `for`），通常无需你提供。当组件外部需要引用某个部件时才传显式 `id`。服务端渲染顺序有影响：若字段标签先于带你的 ID 的控件渲染，标签起初用生成的 ID，水合再更新为你的。把带你的 ID 的部件与引用它的部件放在同一个 Suspense 边界里，让它们一起水合。
+
+用类名或 data 属性写样式，不要用生成的 ID。弹出层就地渲染，服务端布局里不需要 portal 根节点。
+
+## 相关页面
+
+- [弹出层](/docs/concepts/popups)：放置与容器。
+- [表单](/docs/concepts/forms)：提交与校验。
+- [偏好设置](/docs/components/preferences)：保存与读取偏好。

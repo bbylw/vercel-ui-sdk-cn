@@ -1,0 +1,167 @@
+---
+title: "轮播"
+description: "Carousel 基于原生滚动与 scroll snap 分页展示幻灯片：指示器、循环、自动播放、拖拽与进度动画，JS 加载前也能滑动。"
+sidebar:
+  order: 71
+---
+
+`Carousel`（轮播）把一组幻灯片放进可滚动的窗口，按页对齐，配上一页 / 下一页按钮、指示器和自动播放。适合首页焦点图、商品横排、用户评价这类展示型内容。底层是原生滚动加 CSS scroll snap，JavaScript 加载前就能滑动，拖拽和滚轮全程走浏览器原生滚动。只是要一块自由滚动的区域用[滚动区域](/docs/components/scroll-area)；要切换互斥的内容视图用[标签页](/docs/components/tabs)。
+
+## 组合
+
+```text
+Carousel
+├── CarouselViewport
+│   └── CarouselContent
+│       ├── CarouselItem
+│       └── CarouselItem
+├── CarouselPrevious
+├── CarouselNext
+├── CarouselIndicatorGroup
+│   └── CarouselIndicator
+└── CarouselPlayToggle
+```
+
+`CarouselViewport` 是滚动窗口，`CarouselContent` 是排成一行的 flex 容器（纵向时为列），`CarouselItem` 是幻灯片。根上用 `aria-label` 命名整个轮播。视口的 `overflow`、`scroll-snap-type`、`overscroll-behavior` 由组件以内联样式写入，你只需给幻灯片定宽并禁止收缩。
+
+## 用法
+
+```tsx
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+  CarouselViewport,
+} from "@ui-sdk/react/carousel";
+
+function Example() {
+  return (
+    <Carousel aria-label="精选内容">
+      <CarouselViewport>
+        <CarouselContent>
+          <CarouselItem>春季新品</CarouselItem>
+          <CarouselItem>限时折扣</CarouselItem>
+        </CarouselContent>
+      </CarouselViewport>
+      <CarouselPrevious>上一页</CarouselPrevious>
+      <CarouselNext>下一页</CarouselNext>
+    </Carousel>
+  );
+}
+```
+
+## 分页与指示器
+
+页码从 1 开始，`defaultPage` 指定初始页。`slidesPerPage` 决定每页装几张幻灯片，`"auto"` 按视口能容纳的数量自动计算；凑不满起始位置的尾页并入最后一页。指示器是 tablist：每张幻灯片写一个 `CarouselIndicator`，超出页数的自动隐藏，同一份标记适配任意页数。`page` 默认按顺序推断，服务端渲染时显式传入才能标出选中项。
+
+```tsx
+<Carousel aria-label="相册" slidesPerPage={3}>
+  <CarouselViewport>
+    <CarouselContent>
+      {photos.map((photo) => (
+        <CarouselItem key={photo.id}>{photo.name}</CarouselItem>
+      ))}
+    </CarouselContent>
+  </CarouselViewport>
+  <CarouselIndicatorGroup aria-label="选择照片">
+    {photos.map((photo, index) => (
+      <CarouselIndicator key={photo.id} page={index + 1} aria-label={photo.name} />
+    ))}
+  </CarouselIndicatorGroup>
+</Carousel>
+```
+
+页数要测量后才知道，测量前 `state.pageCount` 为 `null`。`CarouselIndicatorGroup` 的 children 可以写成 `(state) => ...`，按实际页数渲染。
+
+## 循环与对齐
+
+`loop` 让末页的下一页回到首页，反向滑动同样环绕。静止时幻灯片用 CSS `order` 轮换到两端，DOM 顺序不变，屏幕阅读器和 `Tab` 仍按原顺序走。前提是内容行间距均匀，且当前页两侧各留得下一页幻灯片，否则末页会滚回首页而不是环绕。`align` 控制页在视口内靠 `start`（默认）、`center` 还是 `end` 对齐，居中的窄幻灯片会让邻页露出边缘。`orientation="vertical"` 改为纵向滚动，记得给视口高度。`skipSnaps` 允许一次跨过多个吸附点，`dragFree` 让拖拽松手后停在任意位置而不吸附，`drag={false}` 关闭指针拖拽。
+
+## 自动播放
+
+`defaultPlaying` 开始轮播，`interval` 是每页停留毫秒数（默认 5000）。`CarouselPlayToggle` 是播放 / 暂停按钮，children 写成状态函数即可切换文案：
+
+```tsx
+<Carousel aria-label="相册" defaultPlaying interval={4000}>
+  <CarouselPlayToggle>
+    {(state) => (state.playing ? "暂停" : "播放")}
+  </CarouselPlayToggle>
+  <CarouselViewport>
+    <CarouselContent>
+      <CarouselItem>沙丘</CarouselItem>
+      <CarouselItem>森林</CarouselItem>
+    </CarouselContent>
+  </CarouselViewport>
+</Carousel>
+```
+
+悬停、按住拖动、标签页隐藏、轮播滚出视口时暂停；键盘焦点进入轮播则彻底停止，直到用户再次按播放。手动翻页也会停止轮播。`prefers-reduced-motion` 下不自动开始，但播放按钮仍可用。`onPlayingChange(playing, details)` 报告每次变化及原因。
+
+## 受控与进度
+
+`page` 加 `onPageChange(page, details)` 接管当前页，`details.reason` 有 `previous-press`、`next-press`、`item-press`、`list-navigation`、`swipe`、`scroll`、`timeout`、`content-resize`、`imperative`；调用 `details.cancel()` 取消变更，幻灯片弹回原页。`onPageChangeComplete(page)` 在滑动停稳后运行一次，适合在这里加载下一页图片等会卡顿的工作。
+
+根上的 `--carousel-progress` 每帧更新滚动进度（首页 0，末页 1，`loop` 时循环往返），不触发重渲染，进度条可以纯 CSS 跟随。`createCarouselController()`（来自 `@ui-sdk/react/carousel`）创建控制器传给 `controller`，提供 `getPage / getPageCount / setPage / next / previous / canNext / canPrevious / getProgress / isPlaying / setPlaying / play / pause`。`CarouselPrevious`、`CarouselNext`、`CarouselIndicatorGroup`、`CarouselPlayToggle` 也各自接受 `controller`，可以从轮播外部驱动它。参见[控制器](/docs/concepts/controllers)。
+
+## 样式与状态
+
+各部件带 `data-slot`：`carousel`、`carousel-viewport`、`carousel-content`、`carousel-item`、`carousel-previous`、`carousel-next`、`carousel-indicator-group`、`carousel-indicator`、`carousel-play-toggle`。根与播放按钮带 `data-playing` / `data-paused`，视口带 `data-dragging`，幻灯片带 `data-active`（属于当前页）与 `data-in-view`（至少一半可见），上一页 / 下一页到头时带 `data-disabled`（仍可聚焦，报告 `aria-disabled`），指示器带 `data-selected`，根与相关部件带 `data-orientation`。
+
+幻灯片宽度用 flex-basis 控制，多张一页时把内容的 gap 从基准里减掉：
+
+```css
+[data-slot="carousel-content"] {
+  display: flex;
+  gap: 1rem;
+}
+[data-slot="carousel-item"] {
+  flex: 0 0 calc((100% - 2rem) / 3);
+  scroll-snap-align: start;
+}
+[data-slot="carousel-item"]:not([data-in-view]) {
+  opacity: 0.4;
+}
+[data-slot="carousel-indicator"][data-selected] {
+  background: currentColor;
+}
+```
+
+`--carousel-interval` 暴露自动播放间隔，可以用它做每页的倒计时动画。详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+根 `Carousel` 的主要 props：
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `page` | `number` | 当前页码，从 1 开始，传入即受控。 |
+| `defaultPage` | `number` | 非受控时的初始页。 |
+| `onPageChange` | `(page, details) => void` | 页码要变化时运行，`details.cancel()` 可拦截。 |
+| `onPageChangeComplete` | `(page) => void` | 滑动停稳在某页后运行。 |
+| `slidesPerPage` | `number \| "auto"` | 每页幻灯片数，默认 1。 |
+| `loop` | `boolean` | 首尾环绕。 |
+| `align` | `"start" \| "center" \| "end"` | 页在视口内的对齐方式。 |
+| `orientation` | `"horizontal" \| "vertical"` | 滚动方向，默认横向。 |
+| `playing` / `defaultPlaying` | `boolean` | 自动播放的受控与非受控状态。 |
+| `interval` | `number` | 每页停留毫秒数，默认 5000。 |
+| `skipSnaps` / `dragFree` / `drag` | `boolean` | 跨吸附点、自由停靠、指针拖拽开关。 |
+| `controller` | `object` | 用 `createCarouselController()` 创建。 |
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA carousel 模式，根是带名字的 region，每张幻灯片是 group，默认以「第几页，共几页」命名，可用自己的 `aria-label` 覆盖成中文。不在视口内的幻灯片设为 `inert` 并对屏幕阅读器隐藏。
+
+- `Tab` 依次经过播放按钮、可见幻灯片里的控件、上一页 / 下一页和当前指示器。
+- 焦点在视口内时，`ArrowRight` / `ArrowLeft` 翻页（纵向用 `ArrowDown` / `ArrowUp`），`Home` / `End` 到首末页；幻灯片里的输入框保留方向键编辑。
+- 指示器组只有一个 Tab 停靠点，方向键移动并显示对应页，`Home` / `End` 到两端。
+- 键盘翻页后焦点移到新页的幻灯片上。RTL 布局下左右方向键自动互换。
+
+自动播放时幻灯片不作为 live region 播报，停止轮播后才以 polite 级别播报，避免朗读被打断。
+
+## 相关组件
+
+- [分页](/docs/components/pagination)：页码列表形式的翻页导航。
+- [滚动区域](/docs/components/scroll-area)：不按页吸附的自由滚动容器。
+- [状态与事件](/docs/concepts/state-and-events)：受控、非受控与变更拦截的通用约定。

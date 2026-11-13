@@ -1,0 +1,186 @@
+---
+title: "头像"
+description: "Avatar 显示人物或团队的图片，加载中与加载失败时回退到首字母或图标，并对外报告加载状态。"
+sidebar:
+  order: 90
+---
+
+`Avatar`（头像）用于评论、成员列表、账号菜单里代表一个人或一个团队。图片加载完成前显示首字母或图标，加载失败后继续显示回退内容。它只负责加载状态与回退切换，尺寸、圆角与配色由你写。
+
+## 组合
+
+```text
+Avatar
+├── AvatarImage
+└── AvatarFallback
+```
+
+`Avatar` 把图片的加载状态共享给各部件。`AvatarImage` 渲染真正的 `img`，服务端标记里也一样，浏览器可以在 hydration 之前就开始取图；`AvatarFallback` 在没有已加载图片时显示，加载失败时继续留着。
+
+## 用法
+
+```tsx
+import { Avatar, AvatarFallback, AvatarImage } from "@ui-sdk/react/avatar";
+
+function Example() {
+  return (
+    <Avatar>
+      <AvatarImage src="/team/qinghe.png" alt="顾清和" />
+      <AvatarFallback>
+        <span aria-hidden="true">顾</span>
+        <span data-slot="visually-hidden">顾清和</span>
+      </AvatarFallback>
+    </Avatar>
+  );
+}
+```
+
+图片加载完成后取代首字母；两种状态下屏幕阅读器都能读到这个人的名字。`data-slot="visually-hidden"` 的视觉隐藏样式要自己写，见下面的 CSS。
+
+## 回退延迟
+
+给回退内容设 `delay`（毫秒），等一会儿再显示，避免图片很快加载时首字母闪一下。不设延迟时回退立即出现，服务端标记里也有：
+
+```tsx
+<Avatar>
+  <AvatarImage src="/team/qinghe.png" alt="顾清和" />
+  <AvatarFallback delay={600}>顾</AvatarFallback>
+</Avatar>
+```
+
+## 图片属性
+
+`AvatarImage` 接受原生 `img` 的属性，作用在浏览器实际加载的那个 `img` 上。页面下方的头像用 `loading="lazy"`，高分屏用 `srcSet`，跨域图片还可以加 `crossOrigin` 与 `referrerPolicy`：
+
+```tsx
+<Avatar>
+  <AvatarImage
+    src="/team/qinghe.png"
+    srcSet="/team/qinghe@1x.png 1x, /team/qinghe@2x.png 2x"
+    alt="顾清和"
+    loading="lazy"
+  />
+  <AvatarFallback>顾</AvatarFallback>
+</Avatar>
+```
+
+## 可交互头像
+
+点击头像要触发动作时，把根渲染成按钮，并给一个在图片加载期间始终可用的可访问名：
+
+```tsx
+<Avatar
+  render={<button type="button" aria-label="顾清和" />}
+  onClick={openProfile}
+>
+  <AvatarImage src="/team/qinghe.png" alt="" />
+  <AvatarFallback aria-hidden>顾</AvatarFallback>
+</Avatar>
+```
+
+此时名字由按钮提供，图片与回退内容都设为装饰性，避免重复播报。换根元素的写法参见[部件与组合](/docs/concepts/parts-and-composition)。
+
+## 加载状态
+
+`onLoadingStatusChange` 收到新状态与变更详情，状态有 `loading`、`loaded`、`error`、`idle` 四种：
+
+```tsx
+<Avatar
+  onLoadingStatusChange={(status, details) => {
+    if (status === "error") reportBrokenImage(details.reason);
+  }}
+>
+  <AvatarImage src={user.image} alt={user.name} />
+  <AvatarFallback>{user.initials}</AvatarFallback>
+</Avatar>
+```
+
+`details.reason` 是 `image-load`、`image-error` 或 `src-change`；`details.event` 是图片的 `load` / `error` 事件，状态一开始就已知时（例如命中缓存）为 undefined。替换已加载的图片时，浏览器会一直显示旧图直到新源加载完成，替换失败则显示回退。
+
+每个部件都能读取状态，回退内容可以按失败与加载中分别显示：
+
+```tsx
+<AvatarFallback>
+  {(state) => (state.loadingStatus === "error" ? "?" : user.initials)}
+</AvatarFallback>
+```
+
+## 样式与状态
+
+在根上定尺寸，让图片与回退填满它。图片在加载完成前自己管理隐藏样式，换元素时请保留这些样式。
+
+三个部件的 `data-slot` 分别是 `avatar`、`avatar-image`、`avatar-fallback`，都带同一个 `data-loading-status`（`idle`、`loading`、`loaded`、`error`），没有其他状态属性。
+
+```css
+[data-slot="avatar"] {
+  position: relative;
+  display: inline-grid;
+  inline-size: 40px;
+  block-size: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--color-card);
+}
+[data-slot="avatar-image"],
+[data-slot="avatar-fallback"] {
+  grid-area: 1 / 1;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+[data-slot="avatar-fallback"] {
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  color: var(--color-muted-foreground);
+}
+[data-slot="avatar"][data-loading-status="error"] [data-slot="avatar-fallback"] {
+  background: var(--color-danger-muted);
+  color: var(--color-danger);
+}
+[data-slot="visually-hidden"] {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+```
+
+详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+`Avatar`：
+
+| 属性 | 类型 | 说明 |
+| --- | --- | --- |
+| `onLoadingStatusChange` | `(status, details) => void` | 加载状态变化时触发，`details` 带 `reason` 与 `event`。 |
+| `render` | `ReactElement \| (props, state) => ReactElement` | 换成按钮等其他元素。 |
+| `debug` | `boolean` | 开发构建里把每次状态变化与原因打到控制台。 |
+
+`AvatarImage`：渲染真正的 `img`，接受 `src`、`alt`、`srcSet`、`crossOrigin`、`referrerPolicy`、`loading` 等原生属性。
+
+`AvatarFallback`：`delay`（`number`，毫秒），显示回退前的等待时间；不传则立即显示，含服务端标记。
+
+所有部件的渲染函数与状态类名都收到 `loadingStatus`（`"idle" | "loading" | "loaded" | "error"`）。
+
+## 键盘与无障碍
+
+头像是展示部件，本身没有键盘交互，也不接受焦点；渲染成按钮后由原生按钮响应 `Enter` 与 `Space`。
+
+- 给图片有意义的 `alt`。回退内容里也要有名字，只显示首字母时用视觉隐藏文本补上。
+- 头像旁边已经有可见名字时，用空 `alt`，并把装饰性的回退内容对屏幕阅读器隐藏。
+- 图片加载成功后取代回退，失败则保留回退；没有图片时一直显示回退。
+
+<Aside type="tip" title="服务端与缓存">
+图片在服务端标记里就是 `img`，浏览器可以提前取图；命中缓存的头像再次挂载时不会闪一下回退内容。首屏头像很多时，参见[服务端渲染](/docs/concepts/server-rendering)。
+</Aside>
+
+## 相关组件
+
+- [按钮](/docs/components/button)：把头像变成可点击的动作入口。
+- [提示](/docs/components/tooltip)：悬停或聚焦时显示完整名字。
+- [时间线](/docs/components/timeline)：活动流里每条事件旁的头像。
+- [部件与组合](/docs/concepts/parts-and-composition)：换元素与读取状态。

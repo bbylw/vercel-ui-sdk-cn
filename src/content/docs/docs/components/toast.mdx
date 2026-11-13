@@ -1,0 +1,184 @@
+---
+title: "轻提示"
+description: "Toast 以全局 toast() 发出自动消失的通知，支持动作按钮、Promise、堆叠与屏幕阅读器播报，不抢占焦点。"
+sidebar:
+  order: 58
+---
+
+`Toast`（轻提示）告诉用户某件事已经发生，例如保存成功或消息已发送，然后自行消失。它可以带「撤销」这样的动作，与之前的提示堆叠，并向屏幕阅读器播报而不抢占焦点。必须得到回应的问题用[警告对话框](/docs/components/alert-dialog)，需要持续交互的内容用[对话框](/docs/components/dialog)。
+
+## 演示
+
+点击按钮发出对应类型的轻提示；「错误」带「重试」动作。指针悬停或焦点进入会暂停倒计时并展开堆叠，也可以滑动关闭。
+
+<DocDemo name="toast" />
+
+## 组合
+
+```text
+ToastRegion
+├── Toast
+│   ├── ToastTitle
+│   ├── ToastDescription
+│   ├── ToastAction
+│   └── ToastClose
+└── Toast
+    ├── ToastTitle
+    └── ToastDescription
+```
+
+`ToastRegion` 通过 children 函数为队列中的每条提示渲染一个 `Toast`，最新在前。标题为提示命名，描述补充细节；空的 `ToastTitle`、`ToastDescription`、`ToastAction` 会自动显示提示数据里的文本，所以区域的渲染函数通常就是这几个部件。
+
+## 用法
+
+在应用根部附近放置一次 `ToastRegion`，动作完成后在任何地方调用 `toast()`：
+
+```tsx
+import {
+  Toast,
+  ToastDescription,
+  ToastRegion,
+  ToastTitle,
+  toast,
+} from "@ui-sdk/react/toast";
+
+function Example() {
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => toast("活动已创建", { description: "周五上午 10:00" })}
+      >
+        创建活动
+      </button>
+      <ToastRegion>
+        {() => (
+          <Toast>
+            <ToastTitle />
+            <ToastDescription />
+          </Toast>
+        )}
+      </ToastRegion>
+    </>
+  );
+}
+```
+
+`toast()` 不限于组件内调用，返回提示的 id。不传 children 时，区域用无样式部件渲染每条提示的标题、描述、动作与取消按钮。需要独立队列时用 `createToaster()` 创建，并作为 `toaster` 传给区域。
+
+## 类型、Promise 与更新
+
+`toast.success`、`.info`、`.warning`、`.error`、`.loading` 设置类型，提示以 `data-type` 暴露，供图标与配色使用。错误立即播报，其余类型等待停顿，可用 `priority` 改变；loading 提示会一直停留直到被更新或关闭。
+
+`toast.promise(promise, { loading, success, error })` 先显示加载提示，Promise 完成或失败后更新同一条；每条消息可以是字符串、带 description 或 action 的选项，或结果的函数。保留 `toast()` 返回的 id（或传入自己的 `id`）即可 `toast.update(id, options)` 更新、`toast.dismiss(id)` 关闭；`update` 返回提示是否还在，`dismiss()` 不带 id 关闭全部。
+
+```tsx
+toast.promise(save, {
+  loading: "正在保存…",
+  success: "更改已保存",
+  error: {
+    title: "保存失败",
+    description: "请检查网络后重试。",
+    action: { label: "重试", onAction: saveChanges },
+  },
+});
+```
+
+## 动作与异步操作
+
+`action` 添加「撤销」这样的按钮，`cancel` 添加关闭提示的取消按钮；给 action 传 `href` 则渲染为链接，保留新标签页打开等正常行为。`onDismiss` 报告关闭原因（`timeout`、`swipe`、`escape-key`、`action` 等），`details.cancel()` 可挽留，被取消的超时重新计时。
+
+动作的 `onAction` 返回 Promise 时，提示保持打开直到它完成：状态里的 `pending` 与 `error` 让按钮显示「正在恢复…」或提供重试，期间忽略再次按下；失败则保留提示。`ToastClose` 的 `action` 同理，按钮带 `data-pending`。
+
+```tsx
+toast("文件已删除", {
+  description: "Q3 报告.pdf",
+  action: { label: "撤销", onAction: () => restore() },
+});
+
+<ToastAction>
+  {(state) => (state.pending ? "正在恢复…" : state.error ? "重试" : "撤销")}
+</ToastAction>
+```
+
+## 堆叠、位置与时长
+
+区域的 `side` 选 `top` / `bottom`，`align` 选 `start` / `center` / `end`（跟随书写方向）；向所在边滑动可关闭提示，非居中时向对齐的一端滑动也可以。`maxVisible` 限制同时显示的数量（默认 3），其余在队列中等待、计时器暂停；指针或焦点进入时堆叠展开，`expanded` 让它常开。
+
+`duration` 以毫秒设置显示时长，默认 5 秒，`Infinity` 停留到被关闭；可设在 toaster 或单条提示上。指针或焦点在区域内、页面隐藏或窗口失焦时计时暂停。`dismissible: false` 禁止滑动、Escape 与 Close 部件关闭，计时器与 `dismiss()` 仍然有效。
+
+```tsx
+<ToastRegion side="top" align="center" maxVisible={4} shortcut="alt+t">
+```
+
+## OverlayHost 与 confirm
+
+也可以不放区域，而在根部渲染一次 `OverlayHost`（来自 `@ui-sdk/react/overlays`）：它渲染 toaster 的区域（用你给的 `toast.children`），并把 `confirm()` 提问渲染为警告对话框。自己放置的区域会接管该 toaster 的显示。用 `createOverlays()` 创建共享实例，传给 `createToaster({ overlays })` 与 `createConfirm({ overlays })`；提问的样式由带 confirm 控制器的 `AlertDialog` 决定，内容从 `payload` 读取，详见[警告对话框](/docs/components/alert-dialog)。
+
+```tsx
+const overlays = createOverlays();
+const toaster = createToaster({ overlays });
+const confirm = createConfirm({ overlays });
+
+<OverlayHost overlays={overlays} toast={{ children: () => <Toast><ToastTitle /></Toast> }} />
+```
+
+## 样式与状态
+
+各部件的 `data-slot` 为 `toast-region`、`toast`、`toast-action`、`toast-close`。区域带 `data-side` / `data-align` / `data-expanded` / `data-keyboard`；提示带 `data-type`、`data-front`（最新一条）、`data-expanded`、`data-starting-style` / `data-ending-style`，滑动时带 `data-swiping` 与 `data-swipe-direction`；动作与关闭按钮在 Promise 运行期间带 `data-pending`。
+
+堆叠布局靠 CSS 变量：区域上的 `--toast-front-height`（最新一条的高度）、`--toast-stack-height`（总高度）、`--toast-count`；每条提示上的 `--toast-index`（0 为最新）、`--toast-offset`（前方提示的高度和）、`--toast-height`（自身内容高度）、`--toast-swipe-x` / `--toast-swipe-y`（滑动位移）。
+
+```css
+[data-slot="toast"] {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: var(--toast-height);
+  translate: var(--toast-swipe-x, 0px)
+    calc(var(--toast-index) * -12px + var(--toast-swipe-y, 0px));
+  transition: translate 400ms, opacity 400ms, height 400ms;
+  user-select: none;
+}
+[data-slot="toast"][data-swiping] {
+  transition: none;
+}
+```
+
+提示渲染在浏览器顶层，盖过包括模态对话框在内的一切；退场动画播完才卸载。完整堆叠 CSS 见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+`toast(message, options)` 与 `toast(options)` 的选项：
+
+| 选项 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `string` | 复用 id：仍在显示的同 id 提示被更新而非新增。 |
+| `title` / `description` | `Content` | 主消息与补充细节。 |
+| `type` | `ToastType` | 类型，影响 `data-type` 与播报方式。 |
+| `duration` | `number` | 显示毫秒数，默认 5000；`Infinity` 直到被关闭。 |
+| `priority` | `"assertive" \| "polite"` | 播报优先级；错误默认 assertive。 |
+| `action` | `{ label, onAction?, href?, dismiss? }` | 动作按钮，如「撤销」；`href` 渲染为链接。 |
+| `cancel` | `{ label, onCancel? }` | 关闭提示的取消按钮。 |
+| `dismissible` | `boolean` | 是否允许滑动、Escape、Close 关闭。 |
+| `data` | `unknown` | 自定义渲染用的附加数据。 |
+| `onDismiss` | `(details) => void` | 关闭时触发，`details.cancel()` 可挽留。 |
+
+`ToastRegion` 的 props：`toaster`（`createToaster()` 的队列）、`side`、`align`、`maxVisible`、`expanded`、`shortcut`（默认 `F6`，`null` 关闭）、`pendingAnnouncement`（动作待决满 1 秒后的播报文案，按页面语言设置）、`aria-label`。`ToastAction` 可覆盖 `onAction` 与 `dismiss`；`ToastClose` 有 `action`。
+
+## 键盘与无障碍
+
+| 按键 | 行为 |
+| --- | --- |
+| `F6`（或 `shortcut`） | 焦点移到最新提示，再按回到原处 |
+| `Tab` / `Shift+Tab` | 在提示与按钮间移动，越过最后一条回到原处 |
+| `Escape` | 关闭聚焦的提示，焦点移到下一条或回到原处 |
+
+提示通过共享 live region 各播报一次：默认 polite，错误 assertive；可见区域本身不是 live region，不会重复朗读。有提示时区域是名为 Notifications 的地标，用 `aria-label` 改成页面语言。模态对话框打开时区域仍可达，Escape 只关提示不关下面的对话框。消息保持简短，必须停留的用 `duration: Infinity`。
+
+## 相关组件
+
+- [警告对话框](/docs/components/alert-dialog)：必须回应的确认，`createConfirm()` 与 OverlayHost 集成。
+- [对话框](/docs/components/dialog)：需要持续交互的模态任务。
+- [弹出层](/docs/concepts/popups)：顶层渲染的共享模型。
+- [样式与动画](/docs/concepts/styling-and-animation)：入场退场与堆叠动画的生命周期。

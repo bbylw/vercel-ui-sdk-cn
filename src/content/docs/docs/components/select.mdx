@@ -1,0 +1,153 @@
+---
+title: "选择器"
+description: "Select 从弹出列表里选一个或多个值：键盘导航、搜索、分组、多选与表单提交，外观完全由你决定。"
+sidebar:
+  order: 37
+---
+
+`Select`（选择器）让人从一组选项里选一个或多个值。它负责开合列表、键盘导航、选中态与随表单提交的值；你提供部件与样式。选项固定、需要紧凑触发器时用它；选项很多或要自由输入时用[组合框](/docs/components/combobox)。
+
+## 演示
+
+打开「角色」并选一项，列表关闭、触发器显示你的选择：
+
+<DocDemo name="select" />
+
+## 组合
+
+```text
+Select
+├── SelectLabel
+├── SelectTrigger
+│   └── SelectValue
+└── SelectContent
+    ├── SelectItem
+    └── SelectItem
+```
+
+`SelectValue` 在触发器里显示选中项的标签，`SelectLabel` 为触发器命名。放进[字段](/docs/components/field)里时改用 `FieldLabel`。
+
+## 用法
+
+```tsx
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@ui-sdk/react/select";
+
+function Example() {
+  return (
+    <Select placeholder="选择一个角色">
+      <SelectLabel>角色</SelectLabel>
+      <SelectTrigger>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="viewer">访客</SelectItem>
+        <SelectItem value="editor">编辑者</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+}
+```
+
+## 选项即数据
+
+把选项作为 `items` 传入，列表由组件渲染，触发器也能在列表从未打开时就显示标签、按键入定位：
+
+```tsx
+const roles = [
+  { value: "viewer", label: "访客" },
+  { value: "editor", label: "编辑者" },
+  { value: "admin", label: "管理员" },
+];
+
+<Select items={roles} placeholder="选择一个角色">
+  <SelectLabel>角色</SelectLabel>
+  <SelectTrigger>
+    <SelectValue />
+  </SelectTrigger>
+  <SelectContent />
+</Select>;
+```
+
+分组用 `{ type: "group", label, items }`。需要搜索时加 `SelectInput`，`filter` 控制匹配方式（`"contains"`、`"startsWith"`、自定义函数或 `false` 保留全部，用于服务端已过滤的结果）。
+
+## 多选
+
+`multiple` 让值变成数组，点选时列表保持打开：
+
+```tsx
+<Select multiple defaultValue={["email", "push"]}>
+  <SelectTrigger>
+    <SelectValue maxLabels={2} />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="email">邮件</SelectItem>
+    <SelectItem value="push">推送</SelectItem>
+    <SelectItem value="sms">短信</SelectItem>
+  </SelectContent>
+</Select>
+```
+
+`maxLabels` 控制触发器里显示几个标签，其余按页面语言的习惯汇总成「等 N 项」。
+
+## 受控与控制器
+
+```tsx
+const [value, setValue] = React.useState<string | null>("editor");
+
+<Select value={value} onValueChange={(next) => setValue(next)}>
+  …
+</Select>;
+```
+
+`onValueChange(value, details)` 的 `details.reason` 说明变更来源，`details.cancel()` 可拦截。要从组件树外命令它，用 `createSelectController()` 创建控制器传给根，调用 `open / close / setValue / getValue / isOpen`。参见[控制器](/docs/concepts/controllers)。
+
+## 样式与状态
+
+弹出层就地渲染进浏览器顶层，用状态属性写样式：
+
+- 触发器与值：未选中时带 `data-placeholder`；开合带 `data-open` / `data-closed`。
+- 选项：选中带 `data-selected`，键盘或指针高亮带 `data-highlighted`，不可选带 `data-disabled`。
+- 内容：`data-modality="keyboard"` 区分键盘与指针高亮；`data-starting-style` / `data-ending-style` 供入场退场动画。
+
+`SelectContent` 上的 CSS 变量用来定位与 sizing：
+
+```css
+[data-slot="select-content"] {
+  width: var(--anchor-width);
+  max-height: var(--available-height);
+  transform-origin: var(--transform-origin);
+}
+[data-slot="select-item"][data-highlighted] {
+  background: var(--color-accent);
+}
+[data-slot="select-item"][data-selected] {
+  color: var(--color-brand);
+}
+```
+
+`--anchor-width` 等于触发器宽度，`--available-height` 是到视口边缘的可用空间。详见[弹出层](/docs/concepts/popups)与[样式与动画](/docs/concepts/styling-and-animation)。
+
+## 表单
+
+给根传 `name`，值随表单提交；`required` 在未选中时阻止提交并给出浏览器原生提示，`disabled` 不提交也不可聚焦，`readOnly` 可聚焦、提交但不可改。放进 `<fieldset disabled>` 或[字段](/docs/components/field)会继承禁用与校验态。
+
+## 键盘与无障碍
+
+- 触发器：`Enter` / `Space` / `ArrowDown` 打开并聚焦首项或选中项。
+- 列表：`ArrowUp` / `ArrowDown` 移动高亮，`Home` / `End` 跳到首尾，`Enter` / `Space` 选中，`Escape` 关闭。
+- 键入字符按 typeahead 定位匹配项；`loop` 控制方向键是否首尾循环。
+
+根渲染 `role="combobox"` 语义并管理 `aria-expanded`、`aria-activedescendant`，选中项对屏幕阅读器可读。
+
+## 相关组件
+
+- [组合框](/docs/components/combobox)：可自由输入并过滤的选择器。
+- [列表框](/docs/components/listbox)：始终展开、无触发器的选择列表。
+- [菜单](/docs/components/menu)：选项是动作而非值时用菜单。

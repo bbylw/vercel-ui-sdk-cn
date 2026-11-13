@@ -1,0 +1,148 @@
+---
+title: "日期输入"
+description: "DateInput 让人按自己语言的顺序逐段键入日期，每段是一个小输入框，适合生日、预订日这类烂熟于心的日期。"
+sidebar:
+  order: 24
+---
+
+`DateInput`（日期输入）让人逐段键入日期，顺序按用户语言书写。日期的每一部分都是独立的小输入框，按语言环境的顺序排列。适合生日、预订日这类人们烂熟于心的日期。需要日历弹出层时用[日期选择器](/docs/components/date-picker)，只输入时间用[时间输入](/docs/components/time-input)。
+
+## 组合
+
+```text
+DateInput
+├── DateInputSegment
+└── DateInputSegment
+```
+
+`DateInput` 渲染一个分组，为日期每一部分放一个 `DateInputSegment`：英语是月、日、年，德语是日、月、年。每个可键入的段是一个小输入框，段之间的斜杠或点也是段（纯文本）。`DateInput` 替你渲染各段，只有想改变外观时才自己渲染（见自定义渲染）。
+
+## 用法
+
+把输入放进[字段](/docs/components/field)并给一个标签：
+
+```tsx
+import { DateInput } from "@ui-sdk/react/date-input";
+import { Field, FieldLabel } from "@ui-sdk/react/field";
+
+function Example() {
+  return (
+    <Field>
+      <FieldLabel>开始日期</FieldLabel>
+      <DateInput defaultValue="2026-11-02" />
+    </Field>
+  );
+}
+```
+
+值是 ISO 日期字符串（如 `"2026-11-02"`），与原生 date 输入相同。每段都填好之前值保持 `null`，因此你的应用只会看到完整日期。键入数字逐段填充并自动跳到下一段；不能再容纳数字的月（如 4）立即跳段，键入分隔符（`/` 或 `.`）也跳段。日会被限制在当月内（从 1 月 31 日移到 2 月显示 28 日）。可把整段日期粘贴进任意段。
+
+## 日期与时间
+
+设 `granularity` 为 `"hour"`、`"minute"` 或 `"second"` 加上时间，值变为本地日期时间（如 `"2026-11-02T14:30"`）。`hourCycle` 指定 12 或 24 小时制，默认跟随语言环境：
+
+```tsx
+<Field>
+  <FieldLabel>出发时间</FieldLabel>
+  <DateInput granularity="minute" defaultValue="2026-11-02T14:30" />
+</Field>
+```
+
+用 `Tab` 在日期与时间各段间移动，在最后一段键入 `P` 或 `A` 切换 PM / AM。
+
+## 范围与不可用日期
+
+`min` 与 `max` 接受 ISO 日期，超出范围的日期无效：输入设 `data-invalid`，其表单不提交。`unavailable` 接受与[日历](/docs/components/calendar)相同的匹配器：ISO 日期、`{ from, to }` 范围、星期如 `{ weekday: [0, 6] }`，或函数；落在其上的日期无效：
+
+```tsx
+<Field>
+  <FieldLabel>入住日期</FieldLabel>
+  <DateInput min="2026-01-01" max="2026-12-31" defaultValue="2026-06-15" />
+  <FieldDescription>2026 年内任意一天。</FieldDescription>
+  <FieldError />
+</Field>
+
+<DateInput defaultValue="2026-11-02" unavailable={{ weekday: [0, 6] }} />
+```
+
+## 语言与顺序
+
+输入从 `locale` 读取顺序、分隔符与时钟，留空则用页面语言。数字始终为 0 到 9，历法始终为公历，因此值在各地都表示同一日期。服务端首帧在读取页面语言前以英语渲染，若首帧重要请显式设 `locale`：
+
+```tsx
+<DateInput locale="en-GB" defaultValue="2026-11-02" />
+<DateInput locale="de-DE" defaultValue="2026-11-02" />
+<DateInput locale="ja-JP" defaultValue="2026-11-02" />
+```
+
+同一日期在英式英语、德语、日语下各按自己的顺序排列各段。
+
+## 受控与控制器
+
+值用 `value` / `onValueChange` 控制：每段都填好时回调一次完整日期，某段被清空时再以 `null` 回调，`details.cancel()` 保留原值。`createDateInputController()` 创建的控制器提供 `getValue / setValue / clear / focus(segment?)`，写方法像键入那样跑变更回调，被取消时返回 `false`；`focus("month")` 可聚焦指定段。参见[控制器](/docs/concepts/controllers)与[状态与事件](/docs/concepts/state-and-events)。
+
+## 样式与状态
+
+把根当作字段的盒子来写样式，段在其内。每个段设 `data-type` 为其单位，可据此把年加宽或淡化段间文本（`data-type="literal"`）；空段设 `data-empty` 并显示占位符；根在日期超范围或不可用时设 `data-invalid`。各部件带 `data-slot`（`date-input`、`date-input-segment`）及 `data-disabled`、`data-readonly`、`data-required`：
+
+```css
+[data-slot="date-input"] {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+}
+[data-slot="date-input"][data-invalid] {
+  border-color: var(--color-danger);
+}
+[data-slot="date-input-segment"][data-type="year"] {
+  min-width: 3ch;
+}
+[data-slot="date-input-segment"][data-type="literal"] {
+  color: var(--color-muted-fg);
+}
+[data-slot="date-input-segment"][data-empty] {
+  color: var(--color-muted-fg);
+}
+```
+
+## API
+
+根 `DateInput` 的常用属性：
+
+- `value` / `defaultValue`（`string | null`）：受控值 / 初始值，ISO 日期或日期时间，未填完整为 `null`。
+- `onValueChange`（`(value, details) => void`）：值想变更时调用，`details.cancel()` 保留原值。
+- `granularity`（`"day" | "hour" | "minute" | "second"`）：显示的最小单位，`"day"` 只显示日期。
+- `hourCycle`（`HourCycle`）：12 或 24 小时制，默认跟随语言环境。
+- `min` / `max`（`string`）：最早 / 最晚值，ISO 日期或日期时间，超出则无效。
+- `unavailable`（`DateMatchers`）：不可选日期，匹配器同日历。
+- `locale`（`string`）：顺序、分隔符与时钟所用语言，默认页面语言。
+- `disabled` / `readOnly` / `required` / `name` / `form`：可用性与表单提交。
+- `controller`（`object`）：用 `createDateInputController()` 创建。
+
+`DateInputSegment` 接受 `segment`（`DateInputSegmentData`，来自根的 `segments`），仅在自定义渲染各段时使用。
+
+## 键盘与无障碍
+
+根是一个 group，由字段标签或你的 `aria-label` 命名。每个段是一个 spinbutton，按其单位命名（如「月」），带值、范围与文本；空段读作「空」。段间文本对屏幕阅读器隐藏，改读各段名称。各段是真实输入框，因此手机会弹出数字键盘，且在页面脚本运行前就能键入。
+
+| 按键 | 行为 |
+| --- | --- |
+| `0` 到 `9` | 填充该段，然后移到下一段 |
+| `ArrowUp` / `ArrowDown` | 步进一段并循环，空段从今天开始 |
+| `PageUp` / `PageDown` | 更大步进：年 5、月 3、日 7、分钟 15 |
+| `Home` / `End` | 跳到该段的首值或末值 |
+| `ArrowLeft` / `ArrowRight` | 移到前一段或后一段 |
+| `Backspace` | 删最后一位数字，再清空该段，再回退 |
+| `Delete` | 清空该段 |
+| `A` / `P` | 在 12 小时制时间里选 AM 或 PM |
+| `Enter` | 以键入内容提交表单 |
+| `Tab` / `Shift+Tab` | 在各段间移动，然后移出输入 |
+
+RTL 页面里各段保持语言环境顺序，`ArrowLeft` / `ArrowRight` 跟随屏幕上的顺序。
+
+## 相关组件
+
+- [日期选择器](/docs/components/date-picker)：带日历弹出层的日期选择。
+- [时间输入](/docs/components/time-input)：只输入时间。
+- [日历](/docs/components/calendar)：可视化月历，`unavailable` 匹配器与其一致。
+- [字段](/docs/components/field)：命名分组并关联描述与校验。

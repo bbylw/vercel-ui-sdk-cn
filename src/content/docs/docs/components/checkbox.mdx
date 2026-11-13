@@ -1,0 +1,171 @@
+---
+title: "复选框"
+description: "Checkbox 用于可勾选或取消的选择，支持半选、分组与全选父项，可单独使用或作为一组共享一个值。"
+sidebar:
+  order: 21
+---
+
+`Checkbox`（复选框）表示一个可勾选或取消的选择。多个选择属于同一个值时用 `CheckboxGroup` 分组。它支持半选（部分选中）状态、全选父项与表单提交。表示单一开关用[开关](/docs/components/switch)，一组里只选一个用[单选组](/docs/components/radio)。
+
+## 组合
+
+```text
+Checkbox
+└── CheckboxIndicator
+```
+
+把复选框和它的文字包进一个 label。`CheckboxIndicator` 在勾选或半选时显示，用来放对勾等图标。
+
+## 用法
+
+```tsx
+import { Checkbox, CheckboxIndicator } from "@ui-sdk/react/checkbox";
+import { CheckIcon } from "lucide-react";
+
+function Example() {
+  return (
+    <label>
+      <Checkbox>
+        <CheckboxIndicator>
+          <CheckIcon aria-hidden="true" />
+        </CheckboxIndicator>
+      </Checkbox>
+      接受条款与条件
+    </label>
+  );
+}
+```
+
+点击复选框或其标签，或聚焦后按 `Space`，即可勾选。需要更多说明时用[字段](/docs/components/field)的 `FieldLabel` 与 `FieldDescription`，字段会把两者关联到复选框。
+
+## 半选状态
+
+半选表示一组里只选中了部分。它带 `aria-checked="mixed"` 与 `data-indeterminate`；按一次会变为勾选，只有你的代码能把它重新置回半选。用 `defaultChecked="indeterminate"` 起始，或把 `"indeterminate"` 作为受控值。指示器可用渲染函数按状态选图标：
+
+```tsx
+<Checkbox defaultChecked="indeterminate">
+  <CheckboxIndicator>
+    {(state) => (state.indeterminate ? <MinusIcon /> : <CheckIcon />)}
+  </CheckboxIndicator>
+</Checkbox>
+```
+
+下文的父复选框会替你从分组推导出这个状态。
+
+## 分组与表单
+
+`CheckboxGroup` 维护一份已勾选值的列表，每个复选框提供自己的 `value`，分组按复选框出现顺序返回选中值。用 `aria-label`、`aria-labelledby` 或字段为分组命名：
+
+```tsx
+<CheckboxGroup aria-labelledby="toppings" defaultValue={["cheese"]}>
+  <label>
+    <Checkbox value="cheese">
+      <CheckboxIndicator />
+    </Checkbox>
+    芝士
+  </label>
+  <label>
+    <Checkbox value="olives">
+      <CheckboxIndicator />
+    </Checkbox>
+    橄榄
+  </label>
+</CheckboxGroup>
+```
+
+单独使用时，给复选框设 `name` 与 `value` 即随原生表单提交（默认值为 `"on"`），未勾选与半选不提交；`required` 会阻止提交直到勾选，重置回到 `defaultChecked`。分组用 `name` 让每个成员以同一名字提交，`required` 要求至少勾选一个。
+
+## 父复选框
+
+给某个复选框加 `parent`，它就成为分组的全选项：全选时勾选、全不选时取消、其间为半选。它用 `aria-controls` 指向子项，自身不提交任何值。给分组传 `allValues`，父项在首帧（含服务端渲染）就有正确状态，否则要等子复选框挂载后才发现这些值：
+
+```tsx
+<CheckboxGroup
+  aria-labelledby="toppings"
+  defaultValue={["cheese", "olives"]}
+  allValues={["cheese", "mushrooms", "olives", "peppers"]}
+>
+  <label>
+    <Checkbox parent>
+      <CheckboxIndicator>
+        <CheckIcon aria-hidden="true" />
+        <MinusIcon aria-hidden="true" />
+      </CheckboxIndicator>
+    </Checkbox>
+    全选
+  </label>
+  {/* 各子复选框 */}
+</CheckboxGroup>
+```
+
+父项只改变启用的子项；禁用整个分组会锁定所有复选框，禁用单个子项则只固定那一个值。
+
+## 受控与控制器
+
+传 `checked` 与 `onCheckedChange` 自己持有值。`createCheckboxController()` 创建的控制器可从任意处改变它，写方法像一次按下那样跑变更回调，被取消时返回 `false`：
+
+```tsx
+const [updates] = React.useState(() => createCheckboxController());
+const [checked, setChecked] = React.useState<CheckedState>(false);
+
+<Checkbox
+  checked={checked}
+  onCheckedChange={(next) => setChecked(next)}
+  controller={updates}
+>
+  <CheckboxIndicator />
+</Checkbox>
+<button onClick={() => updates.toggle()}>切换</button>;
+```
+
+`CheckedState` 为 `true`、`false` 或 `"indeterminate"`。控制器提供 `toggle()`、`getChecked()`、`setChecked(checked)`、`focus()`；分组用 `createCheckboxGroupController()`，提供 `getValue()`、`setValue(value)`、`focus()`。参见[控制器](/docs/concepts/controllers)。
+
+## 样式与状态
+
+用 `data-checked`、`data-unchecked`、`data-indeterminate` 表达勾选态，用 `data-disabled`、`data-readonly`、`data-required` 表达其余状态。指示器继承复选框的同一组状态属性，并额外带 `data-starting-style` / `data-ending-style` 供入场退场动画；`keepMounted` 让指示器在未勾选时也留在页面里，便于两态都做动画：
+
+```css
+[data-slot="checkbox"][data-checked] {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+}
+[data-slot="checkbox"][data-indeterminate] {
+  background: var(--color-warning);
+}
+[data-slot="checkbox-indicator"][data-starting-style] {
+  opacity: 0;
+  transform: scale(0.6);
+}
+```
+
+## API
+
+`Checkbox`：
+
+- `checked` / `defaultChecked`（`CheckedState`）：受控值 / 初始值，`true`、`false` 或 `"indeterminate"`。
+- `onCheckedChange`（`(checked, details) => void`）：用户或重置想改值时调用，`details.reason` 说明原因，`details.cancel()` 拦截。
+- `name` / `value`（`string`）：提交名与勾选时提交的值。
+- `disabled` / `readOnly` / `required`（`boolean`）：禁用、只读、必填。
+- `parent`（`boolean`）：作为分组的全选父项。
+- `controller`（`object`）：用 `createCheckboxController()` 创建。
+
+`CheckboxIndicator`：`keepMounted`（`boolean`）未勾选时是否保留在页面中。
+
+`CheckboxGroup`：`value` / `defaultValue`（`T[]`）、`onValueChange`、`allValues`（`T[]`，供父项与服务端渲染）、`name`、`required`、`disabled`、`readOnly`、`controller`。
+
+## 键盘与无障碍
+
+| 按键 | 行为 |
+| --- | --- |
+| `Tab` | 移到下一个复选框 |
+| `Space` | 勾选或取消，半选则变为勾选 |
+| `Enter` | 提交所在表单（不会切换勾选） |
+
+`Checkbox` 渲染一个带 `checkbox` 角色的按钮，外加一个参与表单的隐藏原生复选框，遵循 WAI-ARIA 复选框模式；半选时 `aria-checked="mixed"`。分组父项遵循其混合复选框示例，用 `aria-controls` 关联子项。点击标签、点击包裹它的 label 都只切换一次。
+
+## 相关组件
+
+- [开关](/docs/components/switch)：表示单一的开 / 关。
+- [单选组](/docs/components/radio)：一组里只选一个。
+- [字段](/docs/components/field)：关联标签、描述与校验。
+- [标签](/docs/components/label)：为复选框命名并让点击触达它。

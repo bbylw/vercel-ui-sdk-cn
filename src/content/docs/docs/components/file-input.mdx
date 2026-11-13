@@ -1,0 +1,192 @@
+---
+title: "文件输入"
+description: "FileInput 收集选择、拖放或粘贴的文件，按类型、数量与大小校验，渲染可移除的文件列表，并随表单提交；上传到服务器由你的应用负责。"
+sidebar:
+  order: 27
+---
+
+`FileInput`（文件输入）保存人们选择、拖放或粘贴的文件，按你的规则校验它们，并随表单一起提交。它只负责收集与校验，把文件上传到服务器是你应用的事。部件无样式，你用 `data-slot` 与状态属性自行外观；需要把选中的图片裁成头像时配合[图片裁剪](/docs/components/image-cropper)。
+
+## 组合
+
+```text
+FileInput
+├── FileInputTrigger
+├── FileInputDropzone
+└── FileInputList
+    └── FileInputItem
+        └── FileInputItemRemove
+```
+
+`FileInputTrigger` 打开系统文件选择器。`FileInputDropzone` 接收拖放到它上面、或焦点在它内部时粘贴的文件；请在旁边保留一个触发器，方便键盘用户。`FileInputList` 为每个文件渲染一次它的子项，子项状态里有 `file` 与 `index`；`FileInputItemRemove` 移除所在项的文件。
+
+## 用法
+
+```tsx
+import {
+  FileInput,
+  FileInputDropzone,
+  FileInputItem,
+  FileInputItemRemove,
+  FileInputList,
+  FileInputTrigger,
+  formatFileSize,
+} from "@ui-sdk/react/file-input";
+
+function Example() {
+  return (
+    <FileInput name="attachments" multiple>
+      <FileInputDropzone>
+        <p>把文件拖到这里</p>
+        <FileInputTrigger>浏览文件</FileInputTrigger>
+      </FileInputDropzone>
+      <FileInputList aria-label="文件">
+        <FileInputItem>
+          {({ file }) => (
+            <>
+              <span>{file.name}</span>
+              <span>{formatFileSize(file.size)}</span>
+              <FileInputItemRemove aria-label={`移除 ${file.name}`} />
+            </>
+          )}
+        </FileInputItem>
+      </FileInputList>
+    </FileInput>
+  );
+}
+```
+
+`formatFileSize` 把字节数格式化成可读大小。根、拖放区与列表项都接受函数作为子内容，收到该部件的状态。
+
+## 校验：类型、数量与大小
+
+`accept` 接受 MIME 类型、通配符与扩展名（如 `"image/*"`、`".pdf"`），对选择器、拖放与粘贴一律生效；扩展名按文件名匹配，即便系统报告了意外的 MIME 类型。`maxFiles` 限制总数（含已持有的文件），`minSize` / `maxSize` 限制每个文件的字节数。被拒的文件绝不进入值，`onReject` 收到每个被拒文件及其 `reasons`：
+
+```tsx
+<FileInput
+  multiple
+  accept={["image/*", ".pdf"]}
+  maxFiles={3}
+  maxSize={5_000_000}
+  onReject={(rejected) => setRejected(rejected)}
+/>
+```
+
+内置原因为 `file-type`、`file-too-large`、`file-too-small`、`too-many-files`。再加 `validate` 做自定义检查：返回原因字符串（如 `"duplicate"`）即拒绝，返回 `null` 即接受；它在内置类型与大小检查之后运行，原因同样进入 `onReject`。服务器端也要再校验一次。
+
+## 拖放、粘贴与整页接收
+
+拖放区在拖入时暴露 `data-dragging`，并按浏览器在放下前给出的文件信息暴露 `data-drag-accept` 或 `data-drag-reject`。`pasteTarget` 让它额外从别处接收粘贴的文件（`"document"`、元素、CSS 选择器或返回元素的函数，如消息文本框），文本粘贴保持原样：
+
+```tsx
+const message = React.useRef<HTMLTextAreaElement>(null);
+
+<FileInput multiple>
+  <FileInputDropzone pasteTarget={() => message.current}>
+    <FileInputList aria-label="附件">
+      <FileInputItem>{({ file }) => file.name}</FileInputItem>
+    </FileInputList>
+    <textarea ref={message} aria-label="消息" />
+    <FileInputTrigger aria-label="添加附件" />
+  </FileInputDropzone>
+</FileInput>
+```
+
+`target="document"` 接收拖到页面任意位置的文件，此时窗口上有文件即显示 `data-dragging`，可做整页遮罩；落在别的拖放区上的文件仍归那个区。`directory` 选择整个文件夹并自动开启 `multiple`，拖入的文件夹递归读取（上限 1000 个，跳过 `.DS_Store` 等系统文件），`relativePath(file)` 返回文件在文件夹内的路径。`capture="environment"` 请求后置摄像头、`"user"` 前置（桌面浏览器仍打开文件选择器）。
+
+## 文件列表与预览
+
+列表只有一个 Tab 停靠点：方向键、`Home`、`End` 在文件间移动，`Delete` 或 `Backspace` 移除聚焦的文件。移除按钮以其文件命名，且不在 Tab 顺序里。做图片预览时为文件创建对象 URL，并在项消失时释放它：
+
+```tsx
+function Preview({ file }: { file: File }) {
+  const [url, setUrl] = React.useState<string>();
+  React.useEffect(() => {
+    const next = URL.createObjectURL(file);
+    setUrl(next);
+    return () => URL.revokeObjectURL(next);
+  }, [file]);
+  return url ? <img src={url} alt="" /> : null;
+}
+```
+
+## 受控与控制器
+
+传 `value` 并在 `onValueChange` 里更新它。`details` 带 `reason`（`picker`、`drop`、`paste`、`remove-press`、`reset`、`imperative`）以及 `added`、`removed`、`rejected` 文件，`details.cancel()` 保留当前值：
+
+```tsx
+const [files, setFiles] = React.useState<File[]>([]);
+
+<FileInput multiple value={files} onValueChange={(value) => setFiles(value)} />;
+```
+
+要从组件树外命令它，用 `createFileInputController()` 创建控制器传给根：`open()` 打开选择器（只能在点击等用户动作中调用）、`addFiles()` 走校验后加入、`removeFile()`、`clear()`、`getValue()` / `setValue()`、`focus()`、`isDragging()`。树外的 `FileInputTrigger` 通过同一个 `controller` 属性连接。参见[控制器](/docs/concepts/controllers)。
+
+## 表单与字段
+
+给根传 `name`，文件通过一个原生文件输入随表单提交（可在水合前提交）；表单重置回到 `defaultValue`，`form` 连接到页面别处的表单。被拒文件绝不提交，`disabled` 既停止选择、拖放与粘贴，也把值排除在提交之外。包进[字段](/docs/components/field)后触发器成为字段的控件，按下标签即打开选择器，`required` 在没有文件时阻止提交：
+
+```tsx
+<Field>
+  <FieldLabel>地址证明</FieldLabel>
+  <FileInput name="proof" required accept={["image/*", ".pdf"]}>
+    <FileInputTrigger>选择文件</FileInputTrigger>
+  </FileInput>
+  <FieldDescription>近三个月的水电账单或银行对账单。</FieldDescription>
+  <FieldError match="valueMissing">请上传扫描件以继续。</FieldError>
+</Field>
+```
+
+共享的提交、重置与禁用行为参见[表单](/docs/concepts/forms)。
+
+## 样式与状态
+
+文件输入不是弹出层，没有定位变量；用 `data-slot` 与状态属性写样式。根带 `data-disabled`、`data-required`、`data-dragging`；拖放区带 `data-dragging`、`data-drag-accept`、`data-drag-reject`、`data-disabled`；触发器与列表带 `data-disabled`、`data-required`；列表项与移除按钮带 `data-disabled`。放进字段后触发器还会得到字段的属性，如 `data-invalid`：
+
+```css
+[data-slot="file-input-dropzone"] {
+  border: 1px dashed var(--color-border);
+}
+[data-slot="file-input-dropzone"][data-drag-accept] {
+  border-color: var(--color-brand);
+  background: var(--color-accent);
+}
+[data-slot="file-input-dropzone"][data-drag-reject] {
+  border-color: var(--color-danger);
+}
+```
+
+详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+根 `FileInput` 的常用属性：
+
+- `accept`（`string | readonly string[]`）：接受的 MIME 类型、通配符与扩展名，缺省接受任意文件。
+- `multiple`（`boolean`）：持有多个文件，新文件加入已有列表；缺省时新文件替换旧文件。
+- `maxFiles`（`number`）、`minSize` / `maxSize`（`number`，字节）：数量与大小上限/下限。
+- `validate`（`(file: File) => string | null | undefined | void`）：自定义检查，返回原因即拒绝。
+- `value` / `defaultValue`（`File[]`）：受控值与非受控初值（重置回到它）。
+- `onValueChange`（`(value: File[], details) => void`）：增删文件时调用，`details.cancel()` 可拦截。
+- `onReject`（`(rejected: FileRejection[], details) => void`）：文件未通过检查时调用，即便没有任何文件被接受。
+- `directory`（`boolean`）、`capture`（`"environment" | "user" | boolean`）：选文件夹与调用摄像头。
+- `name` / `form` / `required` / `disabled`：表单提交与禁用。
+- `announcement`（`(change) => string | null`）：变更后的屏幕阅读器播报，返回 `null` 跳过。
+- `controller`（用 `createFileInputController()` 创建）。
+
+`FileInputDropzone` 接受 `target`（`"document"` 整页接收）与 `pasteTarget`；`FileInputTrigger` 接受 `controller` 以连接树外触发器；`FileInputItem` 的 `file` 由列表传入。
+
+## 键盘与无障碍
+
+- 拖放区本身不是控件，其中的触发器才是唯一的 Tab 停靠点；请始终为键盘与屏幕阅读器用户保留一个触发器。
+- 列表是一个 Tab 停靠点，方向键、`Home`、`End` 在项间移动，`Delete` / `Backspace` 移除聚焦项并聚焦下一项。
+- 移除按钮以其文件命名，且排除在 Tab 顺序之外。
+- 接受、移除与拒绝的文件通过礼貌 live region 播报；原生文件输入不在 Tab 顺序与无障碍树里。
+- 放进字段后，字段标签与触发器文本共同命名触发器，描述描述它，按下标签打开选择器。
+
+## 相关组件
+
+- [字段](/docs/components/field)：关联标签、描述与校验消息。
+- [图片裁剪](/docs/components/image-cropper)：把选中的图片裁成头像或封面。
+- [文本域](/docs/components/textarea)：作为附件的粘贴目标，边写消息边加文件。
+- [输入框](/docs/components/input)：普通文本输入，与文件输入互补。

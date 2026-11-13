@@ -1,0 +1,162 @@
+---
+title: "树形视图"
+description: "Tree 浏览文件、页面等层级结构：展开分支、单选多选、三态复选框、懒加载子节点与虚拟化，遵循 WAI-ARIA treeview 模式。"
+sidebar:
+  order: 80
+---
+
+`Tree`（树形视图）浏览有层级关系的内容，比如文件夹里的文件、文档站侧栏的页面。从嵌套部件起步，再按需加上选择、复选框或服务端加载的子节点。层级只有一层、内容成段开合时用[折叠面板](/docs/components/accordion)。
+
+## 组合
+
+```text
+Tree
+├── TreeItem
+│   ├── TreeItemLabel
+│   │   └── TreeItemIndicator
+│   └── TreeGroup
+│       └── TreeItem
+│           └── TreeItemLabel
+└── TreeItem
+    └── TreeItemLabel
+```
+
+树要有无障碍名字，每个 `TreeItem` 要有唯一 `value`。内含 `TreeGroup` 的项是分支，组容纳子项，标签命名该行。`TreeItemIndicator`（展开箭头）与 `TreeItemCheckbox` 可选，它们属于所在的项，放进标签里才成为行的一部分。
+
+## 用法
+
+```tsx
+import { Tree, TreeGroup, TreeItem, TreeItemIndicator, TreeItemLabel } from "@ui-sdk/react/tree";
+
+function Example() {
+  return (
+    <Tree aria-label="项目文件">
+      <TreeItem value="src">
+        <TreeItemLabel>
+          <TreeItemIndicator>›</TreeItemIndicator>
+          src
+        </TreeItemLabel>
+        <TreeGroup>
+          <TreeItem value="src/index.ts">
+            <TreeItemLabel>index.ts</TreeItemLabel>
+          </TreeItem>
+        </TreeGroup>
+      </TreeItem>
+      <TreeItem value="package.json">
+        <TreeItemLabel>package.json</TreeItemLabel>
+      </TreeItem>
+    </Tree>
+  );
+}
+```
+
+## 数据与路径
+
+传 `items` 把完整层级（含折叠分支）交给树，每项是 `TreeItemData`：`value`、`label`，分支加 `children`，另有可选 `disabled` 与 `href`（项变成链接）。不自己写行时，树直接按数据渲染部件。文件浏览器改传 `paths`，如 `["src/index.ts", "README.md", "tests/"]`：文件夹成为分支并排在文件前，以 `/` 结尾的路径是空文件夹；`treeFromPaths()` 返回同样的数据，供自己渲染行时使用。
+
+```tsx
+<Tree
+  aria-label="项目文件"
+  paths={["src/index.ts", "tests/", "README.md"]}
+  defaultExpanded={["src"]}
+/>
+```
+
+<Aside type="tip" title="把完整层级交给 items">
+控制器和虚拟化需要知道尚未渲染的分支。传入 `items`，或让折叠的组 `keepMounted`，`reveal` 与 `expandAll` 才能到达深处的节点。
+</Aside>
+
+## 选择与复选框
+
+`mode` 默认 `"single"`，`"multiple"` 允许多选（Cmd/Ctrl 点击加减、Shift 点击或 Shift+方向键扩展范围、Cmd/Ctrl+A 选中可见项），`"none"` 不选。单选时 `activation="automatic"` 让方向键移动即选中，`"manual"` 等 Enter、Space 或点击。`value` / `expanded` / `checked` 三组受控属性各自配 `defaultValue` 等默认值与 `onValueChange` 等回调，回调都带 reason 且可 `details.cancel()` 拦截。
+
+`checkable` 给每项一个三态复选框，与选择状态互不干扰：勾选分支级联勾选后代，部分勾选显示混合态，`Space` 勾选聚焦项。`TreeItemCheckbox` 放进标签：
+
+```tsx
+<TreeItemLabel>
+  <TreeItemCheckbox />
+  React
+</TreeItemLabel>
+```
+
+`checkStrategy` 决定 `checked` 数组报告哪些项：`"leaf"`（默认）报勾选的叶子，`"trunk"` 报最外层全勾选项，`"branch"` 报所有全勾选项，`"independent"` 各项独立、不级联。`current` 标记当前页的项：输出 `aria-current="page"`、优先持有 Tab 停靠点，其祖先自动展开。
+
+## 懒加载子节点
+
+子节点还不存在时先给项设 `branch`。`loadChildren(value, { signal })` 在空分支首次展开时运行：加载并渲染子节点（比如存进 state 再映射成行）后让 Promise 落定，树随即展开分支。加载期间带 `data-loading`，失败带 `data-failed`，再次展开即重试；加载中再展开会通过 `signal` 中止请求。`announcement({ type, label })` 自定义加载与失败的播报文案。
+
+`onAction(value, details)` 在项被按下或 Enter 时运行（选中之外），比如打开文件；返回 Promise 则项带 `data-pending` 直到落定，`pendingAnnouncement` 在动作悬置一秒后播报，别让慢动作无声无息。
+
+## 控制器与虚拟化
+
+`createTreeController()`（来自 `@ui-sdk/react/tree`）创建的控制器提供 `getExpanded / setExpanded / isExpanded / expand / collapse / toggle / expandAll / collapseAll / getValue / setValue / getChecked / setChecked / checkedState / reveal / focus`。`reveal(value)` 展开祖先、滚入视野并聚焦，适合「定位当前文件」。折叠的组默认卸载，`keepMounted` 留在页面里，`hiddenUntilFound` 进一步支持页内查找命中后展开（根或组级设置）。
+
+大列表用虚拟化：传完整 `items`，用 `visibleTreeRows(items, expanded)` 把展开的分支摊平成 `{ item, parent, level, index }` 行数组，只渲染附近的行；DOM 是平的，ARIA 层级仍由树补全。`onHighlight(value, { index })` 报告键盘焦点行的序号，在这里把尚未渲染的行滚入视野；每行的 `--tree-level` 供样式按深度缩进。
+
+## 样式与状态
+
+各部件带 `data-slot`：`tree`、`tree-item`、`tree-label`、`tree-indicator`、`tree-checkbox`、`tree-group`。行样式写在 `tree-label` 上（项自己的背景会盖住子项），焦点留在项上，用「项内标签」的 `:focus-visible` 画焦点环。项与标签带 `data-level` / `data-branch` / `data-expanded` / `data-selected` / `data-current` / `data-disabled` / `data-loading` / `data-failed` / `data-pending`，项另有 `data-checked` / `data-unchecked` / `data-indeterminate`；组带 `data-open` / `data-closed`。
+
+```css
+[data-slot="tree-label"] {
+  padding-inline-start: calc(var(--tree-level) * 1rem);
+}
+[data-slot="tree-item"][data-selected] > [data-slot="tree-label"] {
+  background: rgb(0 0 0 / 6%);
+}
+[data-slot="tree-item"]:focus-visible > [data-slot="tree-label"] {
+  outline: 2px solid currentColor;
+}
+[data-slot="tree-group"] {
+  height: var(--tree-group-height);
+  overflow: hidden;
+  transition: height 150ms ease-out;
+}
+[data-slot="tree-group"]:is([data-starting-style], [data-ending-style]) {
+  height: 0;
+}
+```
+
+组等退场动画结束再卸载；首屏就展开或被页内查找揭示的组不播动画。详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+根 `Tree` 的主要 props：
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `items` | `TreeItemData[]` | 完整层级数据，可代替手写行。 |
+| `paths` | `readonly string[]` | 文件路径生成层级，文件夹优先。 |
+| `mode` | `"single" \| "multiple" \| "none"` | 选择模式，默认单选。 |
+| `value` / `defaultValue` | `TreeValue<Mode>` | 选中值，多选为数组，传入即受控。 |
+| `onValueChange` | `(value, details) => void` | 选中要变化时运行，可拦截。 |
+| `activation` | `"automatic" \| "manual"` | 单选时移动焦点是否即选中。 |
+| `expanded` / `defaultExpanded` | `string[]` | 展开分支的 value 数组。 |
+| `onExpandedChange` | `(expanded, details) => void` | 展开要变化时运行，可拦截。 |
+| `expandOnPress` | `boolean` | 按分支行是否开合，默认 `true`，指示器始终可开合。 |
+| `checkable` | `boolean` | 启用三态复选框，与选择分离。 |
+| `checked` / `defaultChecked` | `string[]` | 勾选值，按 `checkStrategy` 报告。 |
+| `checkStrategy` | `"leaf" \| "trunk" \| "branch" \| "independent"` | 勾选值的报告策略，默认 `"leaf"`。 |
+| `onAction` | `(value, details) => unknown` | 按下或 Enter 时的动作，返回 Promise 进入 pending。 |
+| `loadChildren` | `(value, { signal }) => void \| Promise` | 空分支首次展开时加载子节点。 |
+| `current` | `string \| null` | 当前页的项，优先聚焦并展开祖先。 |
+| `controller` | `object` | 用 `createTreeController()` 创建。 |
+
+`TreeItem` 必填 `value`，另有 `branch`、`disabled`、`label`（typeahead 匹配文本）；`TreeGroup` 有 `keepMounted`、`hiddenUntilFound`。
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA treeview 模式：项是 `treeitem` 角色，带 `aria-level`，分支带 `aria-expanded`，可勾选时带 `aria-checked`。整棵树只有一个 Tab 停靠点，`Tab` 落在当前页、选中项或第一项上，之后回到上次聚焦的项。
+
+- `ArrowDown` / `ArrowUp` 在可见项间移动；`Home` / `End` 到首末可见项。
+- `ArrowRight` 展开分支或进入第一个子项；`ArrowLeft` 折叠分支或回到父项。
+- `Alt+ArrowRight` / `Alt+ArrowLeft` 连同后代一起展开 / 折叠；`*` 展开同级分支。
+- `Enter` 选中并执行动作或跟随链接；`Space` 勾选（可勾选时）否则选中。
+- 多选时 `Shift+ArrowDown` / `Shift+ArrowUp` 扩展范围，Cmd/Ctrl+A 选中可见项。
+- 输入字符跳到标签以其开头的下一项；RTL 下左右键互换。
+
+## 相关组件
+
+- [折叠面板](/docs/components/accordion)：单层分区的开合，不需要层级导航时。
+- [可折叠区域](/docs/components/collapsible)：只开合一块内容。
+- [滚动区域](/docs/components/scroll-area)：长树的自定义滚动条。

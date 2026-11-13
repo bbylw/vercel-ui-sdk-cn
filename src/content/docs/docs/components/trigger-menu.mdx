@@ -1,0 +1,183 @@
+---
+title: "触发菜单"
+description: "TriggerMenu 在输入 @、/、# 等触发字符时于光标处打开建议列表，把选择插入文本，支持命令参数与异步加载。"
+sidebar:
+  order: 60
+---
+
+`TriggerMenu`（触发菜单）在用户输入触发字符时建议可插入的内容：`@` 提及人、`/` 执行命令、`#` 链接频道。列表在光标处打开，随输入收窄，选中后把触发字符与查询替换为所选内容。独立的搜索选择用[组合框](/docs/components/combobox)，文本与 token 混合的值用[令牌输入](/docs/components/token-input)。
+
+## 组合
+
+```text
+TriggerMenu
+├── TriggerMenuInput
+├── TriggerMenuStatus
+└── TriggerMenuContent
+    ├── TriggerMenuEmpty
+    └── TriggerMenuList
+        ├── TriggerMenuItem
+        └── TriggerMenuItem
+```
+
+`TriggerMenu` 持有触发字符及各自的列表；`TriggerMenuInput` 是输入字段（渲染 `textarea`，可用 `render` 换成 `<input>`）；`TriggerMenuContent` 是建议弹出层。直接子级中没有 `TriggerMenuContent` 时，菜单自动渲染当前触发器的 items。放在 Token Input 内部时省略 `TriggerMenuInput`，菜单直接向令牌输入建议。
+
+## 用法
+
+```tsx
+import {
+  TriggerMenu,
+  TriggerMenuContent,
+  TriggerMenuInput,
+  TriggerMenuItem,
+  TriggerMenuList,
+} from "@ui-sdk/react/trigger-menu";
+
+function Example() {
+  return (
+    <TriggerMenu triggers={[{ char: "@" }]}>
+      <TriggerMenuInput aria-label="消息" placeholder="输入 @ 提及某人…" />
+      <TriggerMenuContent>
+        <TriggerMenuList>
+          <TriggerMenuItem value="hollis" label="Hollis Grant">
+            Hollis Grant
+          </TriggerMenuItem>
+          <TriggerMenuItem value="ines" label="Inès Moreau">
+            Inès Moreau
+          </TriggerMenuItem>
+        </TriggerMenuList>
+      </TriggerMenuContent>
+    </TriggerMenu>
+  );
+}
+```
+
+`label` 是匹配与插入所用的文本：选择 Hollis Grant 会把 `@` 及其后输入的查询替换为 `@Hollis Grant `。
+
+## 触发器即数据
+
+每个触发器有 `char`（可以是 `"[["` 这样的多字符）与 `items`；items 可以是字符串、对象、分组或加载器。同一字段可以在 `@` 后列人、`/` 后列命令、`#` 后列频道。`boundary: "start"` 只在文本开头匹配（前导空格即可逃逸）；`spaces`、`pattern`、`maxLength` 决定查询可包含什么，`filter` 决定如何收窄，`insert` 决定用什么替换触发字符与查询。
+
+```tsx
+const triggers: TriggerDefinition[] = [
+  { char: "@", items: people },
+  { char: "/", boundary: "start", items: commands },
+  { char: "#", items: searchChannels },
+];
+
+<TriggerMenu triggers={triggers}>
+  <TriggerMenuInput placeholder="输入 @、/ 或 #…" />
+</TriggerMenu>
+```
+
+也可以自行组合条目：`TriggerMenuGroup` / `TriggerMenuGroupLabel` 分组、`TriggerMenuSeparator` 分隔，`keywords` 增加匹配词，`disabled` 保留在列表但不可选（仍可高亮）。条目自己的 `onSelect` 先运行，可用 `details.insert()` 插入别的文本。
+
+## 命令与参数
+
+带 `arguments` 的条目选中后按顺序询问每个参数：`TriggerMenuHint` 在光标处以幽灵文本显示剩余参数（对屏幕阅读器隐藏），Tab 接受高亮建议并进入下一个参数，只剩可选参数时 Enter 完成，Backspace 越过参数起点回到上一个。没有 `items` 的参数是自由文本，不显示列表；`allowCustomValue` 决定是否接受不在建议中的输入。`after` 决定选中后的行为：`"compose"` 关闭菜单，`"continue"` 保持打开继续列表，`"submit"` 请编辑器发送表单（Tab 永不提交）。
+
+```tsx
+const commands = [
+  {
+    value: "status",
+    label: "status",
+    arguments: [
+      { name: "status", hint: "<status>", required: true, items: ["available", "busy", "away"] },
+      { name: "until", hint: "[until]", items: ["30m", "1h", "4h", "today"], allowCustomValue: false },
+    ],
+  },
+  { value: "away", label: "away", after: "submit" as const },
+];
+
+<TriggerMenu triggers={[{ char: "/", boundary: "start", type: "command", items: commands }]}>
+  <TriggerMenuInput placeholder="输入 / 使用命令…" />
+  <TriggerMenuHint />
+</TriggerMenu>
+```
+
+## 异步加载与状态
+
+触发器的 `items` 可以是加载器：输入停顿后带着查询与 `AbortSignal` 调用；更新的查询中止旧的加载，只有最新结果落地，加载期间保留上一次结果。`TriggerMenuStatus` 与 `TriggerMenuEmpty` 获得 `loading` 状态，加载时列表带 `aria-busy`，可以淡出即将变化的结果。`onSelect` 返回 Promise 且编辑器接受 token 时，token 立即以待决状态插入（`data-pending`），随结果更新、失败则移除，菜单两种情况都会关闭。
+
+`TriggerMenuStatus` 是 polite 状态区，输入停顿后播报数量与按键提示，请渲染一个（视觉隐藏或放在列表顶部）。渲染 `TriggerMenuEmpty` 让菜单在无匹配时保持打开并显示消息；不渲染则无匹配即关闭。
+
+```tsx
+<TriggerMenuStatus>
+  {(state) => (state.loading ? "正在加载频道…" : `${state.count} 个频道`)}
+</TriggerMenuStatus>
+<TriggerMenuEmpty>
+  {(state) => (state.empty && !state.loading ? `没有匹配「${state.query}」的频道` : null)}
+</TriggerMenuEmpty>
+```
+
+## 编辑器适配与控制器
+
+传 `editor` 把菜单连到自行渲染的字段或其他编辑器（如 Tiptap）；`textFieldAdapter()` 为 textarea 或 input 创建适配器。自定义适配器要读取文本与选区、按偏移测量矩形、把一次替换作为单个撤销步骤并报告变化；非用户产生的变化（如协作者）用 `user: false` 报告，菜单不会为其打开。
+
+`createTriggerMenuController()` 供任意位置操作：`open({ trigger: "@" })` 先在光标处键入触发字符再打开，返回的 Promise 在关闭时解析；`insert(content)` 替换当前匹配或在光标处插入；另有 `getQuery()`、`getMatch()`、`focus()`。选择条目保留原生字段的撤销历史，Command+Z / Control+Z 找回查询。
+
+```tsx
+const menu = createTriggerMenuController();
+await menu.open({ trigger: "@" });
+menu.insert("6 月 12 日");
+```
+
+## 样式与状态
+
+列表默认在光标下方打开，翻转保持在屏内；`side`、`align`、`sideOffset`、`alignOffset`、`collisionPadding`、`anchor`、`container`、`keepMounted` 与其他弹出层一致。`data-slot` 有 `trigger-menu-input`、`trigger-menu-content`、`trigger-menu-item`、`trigger-menu-empty`、`trigger-menu-item-icon` 等：输入与内容带 `data-open` / `data-closed` 与 `data-trigger`（当前触发字符，可让命令列表用等宽字体），内容另有 `data-starting-style` / `data-ending-style` 与 `data-has-icons`；条目带 `data-highlighted` / `data-disabled` / `data-has-icon`；空状态带 `data-empty` / `data-loading`；`mirror` 图标带 `data-mirror`（RTL 文本中翻转）。
+
+内容上的 CSS 变量：`--anchor-width` / `--anchor-height`、`--available-width` / `--available-height`、`--transform-origin`、`--arrow-offset`。
+
+```css
+[data-slot="trigger-menu-content"][data-trigger="/"] {
+  font-family: var(--font-mono);
+}
+[data-slot="trigger-menu-item"][data-highlighted] {
+  background: var(--color-accent);
+}
+[data-slot="trigger-menu-content"][aria-busy] [data-slot="trigger-menu-list"] {
+  opacity: 0.6;
+}
+```
+
+图标放在 `TriggerMenuItemIcon` 里、文本之前：屏幕阅读器跳过它，过滤与插入的文本也忽略它；只有图标的条目要给 `aria-label`（也参与匹配）。
+
+## API
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `triggers` | `TriggerDefinition[]` | 必填；触发字符与各自的列表。 |
+| `editor` | `TextEditorAdapter` | 连接外部编辑器；Input 与 TokenInput 自动设置。 |
+| `open` / `onOpenChange` | `boolean` / `(open, details) => void` | 受控开合；仅有匹配时显示，`details` 含 `trigger`，可 `cancel()`。 |
+| `onOpenChangeComplete` | `(open: boolean) => void` | 动画结束后报告。 |
+| `onQueryChange` | `(query, details) => void` | 查询文本变化；`details.argument` 为正在输入的参数名。 |
+| `onSelect` | `(value, details) => void \| Promise` | 选中（含全部必填参数）；`details.insert()` / `preventDefault()`。 |
+| `autoHighlight` | `boolean` | 是否高亮首个匹配，让 Enter / Tab 直接选择。 |
+| `loop` | `boolean` | 方向键是否首尾循环。 |
+| `shortcut` | `string` | 重开被 Escape 关闭的匹配，默认 Control+Space。 |
+| `dismissible` / `onDismissAttempt` | `boolean` / 回调 | 是否允许 Escape、外部点击等关闭，及被拒时的回调。 |
+| `controller` | `object` | 用 `createTriggerMenuController()` 创建。 |
+| `pendingAnnouncement` | `string` | `onSelect` 的 Promise 待决满 1 秒后的播报文案。 |
+
+触发器定义另有 `boundary`、`spaces`、`pattern`、`maxLength`、`type`、`items`、`filter`、`insert`；数据条目有 `value`、`label`、`keywords`、`disabled`、`after`、`arguments`；`TriggerMenuItem` 另有 `onSelect`；`TriggerMenuContent` 有定位 props 与 `keepMounted`。
+
+## 键盘与无障碍
+
+焦点始终留在输入字段，方向键只移动高亮。`<textarea>` 保持 textbox 角色，用 `aria-controls` 指向列表、方向键后加 `aria-activedescendant`；`<input>` 是带 `aria-expanded` 的 combobox。给字段可见标签（Field）或 `aria-label`。单行输入的 Enter 常用来提交表单，可设 `autoHighlight={false}`：方向键高亮后 Enter 才选择。
+
+| 按键 | 行为 |
+| --- | --- |
+| `ArrowDown` / `ArrowUp` | 移动高亮，光标不动 |
+| `Enter` | 选择高亮条目；只剩可选参数时完成命令 |
+| `Tab` | 选择高亮条目，或接受参数并进入下一个 |
+| `Escape` | 关闭列表并忽略当前匹配，继续输入不再重开 |
+| `Control+Space` | 重开被忽略的匹配（`shortcut` 可改） |
+| `Backspace` | 越过参数起点，回到上一个参数 |
+| `Command+Z` / `Control+Z` | 撤销插入，找回查询 |
+
+## 相关组件
+
+- [组合框](/docs/components/combobox)：独立的搜索选择输入。
+- [令牌输入](/docs/components/token-input)：文本与 token 混合的值，可内嵌本菜单。
+- [命令面板](/docs/components/command)：全局命令面板。
+- [弹出层](/docs/concepts/popups)：顶层渲染与定位的共享模型。

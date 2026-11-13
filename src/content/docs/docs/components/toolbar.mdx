@@ -1,0 +1,156 @@
+---
+title: "工具栏"
+description: "Toolbar 把按钮、开关、菜单和输入框收进一个 Tab 停靠点：方向键漫游焦点、控件保留自己的按键，遵循 WAI-ARIA toolbar 模式。"
+sidebar:
+  order: 79
+---
+
+`Toolbar`（工具栏）把编辑器、画布或表格的一组控件收在一起：`Tab` 只进入一次，方向键在按钮、开关、菜单触发器和输入框之间移动。它是控件的容器而不是导航，站点链接分组用[导航菜单](/docs/components/navigation-menu)。
+
+## 组合
+
+```text
+Toolbar
+├── ToolbarButton
+├── ToolbarSeparator
+├── ToolbarGroup
+│   ├── ToolbarButton
+│   └── ToolbarButton
+├── ToolbarLink
+└── ToolbarInput
+```
+
+按钮、链接、输入框直接放进工具栏；`ToolbarGroup` 给一组相关控件命名，`ToolbarSeparator` 在组之间画分隔线。`Toggle` / `ToggleGroup`（来自 `@ui-sdk/react/toggle`）自行加入工具栏导航，菜单和选择器触发器经 `ToolbarButton` 加入。根用 `aria-label` 命名，纯图标控件各自带 `aria-label`。
+
+## 用法
+
+```tsx
+import { Toolbar, ToolbarButton, ToolbarSeparator } from "@ui-sdk/react/toolbar";
+
+function Example() {
+  return (
+    <Toolbar aria-label="格式">
+      <ToolbarButton>撤销</ToolbarButton>
+      <ToolbarButton>重做</ToolbarButton>
+      <ToolbarSeparator />
+      <ToolbarButton>插入链接</ToolbarButton>
+    </Toolbar>
+  );
+}
+```
+
+## 开关与菜单
+
+工具栏里的 `ToggleGroup` 不再增加 Tab 停靠点：方向键只移动焦点、绝不按下开关，`Enter` / `Space` 才按下聚焦的开关。
+
+```tsx
+<Toolbar aria-label="段落">
+  <ToggleGroup defaultValue={["left"]} deselectable={false} aria-label="对齐">
+    <Toggle value="left">左对齐</Toggle>
+    <Toggle value="center">居中</Toggle>
+    <Toggle value="right">右对齐</Toggle>
+  </ToggleGroup>
+  <ToolbarSeparator />
+  <ToolbarButton>插入链接</ToolbarButton>
+</Toolbar>
+```
+
+菜单触发器用 `render` 换上 `ToolbarButton`，横向工具栏里 `ArrowDown` 打开菜单，左右键继续在工具栏项间移动，`Escape` 关闭后焦点回到触发器：
+
+```tsx
+<Menu>
+  <ToolbarButton render={<MenuTrigger />}>分享</ToolbarButton>
+  <MenuContent>
+    <MenuItem value="email">邮件</MenuItem>
+    <MenuItem value="link">复制链接</MenuItem>
+  </MenuContent>
+</Menu>
+```
+
+## 输入框
+
+`ToolbarInput` 是工具栏里的文本框，也可以用 `render` 换上别的字段控件，比如数字输入框的 control。字段保留 `Home` / `End` 和移动光标的方向键；光标已在对应端点且没有选中文本时，方向键才离开字段。用方向键进入字段会把光标放在该方向的远端：再按同向键离开，按反向键开始编辑。数字输入框保留 `ArrowUp` / `ArrowDown` 步进数值。
+
+```tsx
+<NumberInput defaultValue={14} min={8} max={72}>
+  <NumberInputGroup>
+    <NumberInputDecrement aria-label="减小字号">−</NumberInputDecrement>
+    <ToolbarInput render={<NumberInputControl aria-label="字号" />} />
+    <NumberInputIncrement aria-label="增大字号">+</NumberInputIncrement>
+  </NumberInputGroup>
+</NumberInput>
+```
+
+`ToolbarLink` 渲染链接，`Enter` 跟随它的 `href`。
+
+## 分组与禁用
+
+`ToolbarGroup` 用 `aria-label` 命名一组控件，`disabled` 禁用组内全部项。禁用的项默认仍可聚焦并报告 `aria-disabled`，方向键照常到达，tooltip 还能解释原因；`focusableWhenDisabled={false}` 让它像原生禁用一样被跳过。根上 `disabled` 禁用所有项，但工具栏保留自己的 Tab 停靠点，始终可被发现。分隔线的方向横跨工具栏：横向工具栏里它是竖线。
+
+## 焦点与快捷键
+
+工具栏只有一个 roving 焦点：`Tab` 首次进入落在第一个可用项，之后回到上次聚焦的项，再按 `Tab` 离开。`createToolbarController()`（来自 `@ui-sdk/react/toolbar`）创建的控制器只有 `focus()`，把焦点送到持有停靠点的项，每个工具栏配一个。配合 `useShortcut`（来自 `@ui-sdk/react/shortcuts`）做编辑器惯用的 Alt+F10：
+
+```tsx
+const [toolbar] = React.useState(createToolbarController);
+useShortcut("alt+f10", () => toolbar.focus(), { allowInInput: true });
+
+<Toolbar controller={toolbar} aria-label="格式">
+  <ToolbarButton>加粗</ToolbarButton>
+  <ToolbarButton>斜体</ToolbarButton>
+</Toolbar>;
+```
+
+`orientation="vertical"` 改用上下方向键，`loop`（默认 `true`）控制方向键是否首尾环绕。参见[控制器](/docs/concepts/controllers)。
+
+## 样式与状态
+
+各部件带 `data-slot`：`toolbar`、`toolbar-button`、`toolbar-link`、`toolbar-input`、`toolbar-group`、`toolbar-separator`。根与项带 `data-orientation`，分隔线的 `data-orientation` 表示线的走向（与工具栏垂直）；项与组带 `data-disabled`（来自自身、所在组或工具栏）。工具栏里的开关保留自己的 `data-pressed`。
+
+```css
+[data-slot="toolbar"] {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid rgb(0 0 0 / 10%);
+  border-radius: 0.5rem;
+}
+[data-slot="toolbar-separator"] {
+  width: 1px;
+  background: rgb(0 0 0 / 10%);
+}
+[data-slot="toolbar-button"][data-disabled] {
+  opacity: 0.4;
+}
+```
+
+纵向工具栏把根改成 `flex-direction: column`，分隔线改写成高度。
+
+## API
+
+根 `Toolbar` 的主要 props：
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `orientation` | `"horizontal" \| "vertical"` | 方向键轴向，默认横向。 |
+| `loop` | `boolean` | 方向键是否首尾环绕，默认 `true`。 |
+| `disabled` | `boolean` | 禁用全部项，保留 Tab 停靠点。 |
+| `controller` | `object` | 用 `createToolbarController()` 创建，提供 `focus()`。 |
+
+`ToolbarButton` / `ToolbarInput` 有 `disabled`、`focusableWhenDisabled`；`ToolbarGroup` 有 `disabled`；`ToolbarLink` 与 `ToolbarSeparator` 没有专属 props。
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA toolbar 模式：根是 `toolbar` 角色并带 `aria-orientation`，分隔线是 `separator` 角色。
+
+- `Tab` 进入唯一的停靠点，再按离开；`Shift+Tab` 从工具栏之后回到该停靠点。
+- 横向用 `ArrowRight` / `ArrowLeft`，纵向用 `ArrowDown` / `ArrowUp` 移动焦点；`Home` / `End` 到首末项，字段内除外。
+- `Enter` / `Space` 激活按钮或开关、打开弹层；移动焦点永远不会按下开关。
+- 控件保留自己的按键：`ArrowDown` 打开菜单，数字框用上下键步进，文本框保留光标键。
+- RTL 下左右键互换；禁用项可聚焦、报告 `aria-disabled` 且不动作。
+
+## 相关组件
+
+- [导航菜单](/docs/components/navigation-menu)：站点链接的分组导航，与控件工具栏分工不同。
+- [可调整大小](/docs/components/resizable)：编辑器分栏布局，工具栏常置于面板顶部。
+- [部件与组合](/docs/concepts/parts-and-composition)：render 组合触发器与字段控件的约定。

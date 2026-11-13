@@ -1,0 +1,177 @@
+---
+title: "开关"
+description: "Switch 切换立即生效的设置：受控状态、保存成功再生效、原生表单提交与完整的键盘语义。"
+sidebar:
+  order: 39
+---
+
+`Switch`（开关）用于改动后立刻生效的设置，例如飞行模式或通知偏好。两种状态下标签文字保持不变：标签说明这是什么设置，开关本身表示它开没开。需要勾选后随表单一起提交的选项用[复选框](/docs/components/checkbox)；按下状态属于工具栏按钮时用[切换按钮](/docs/components/toggle)。
+
+## 演示
+
+点击开关，或聚焦后按空格，下方的状态文字随之更新：
+
+<DocDemo name="switch" />
+
+## 组合
+
+```text
+Switch
+└── SwitchThumb
+```
+
+把开关和它的文字一起包在 `label` 里。`SwitchThumb` 始终挂载并继承开关的状态，所以可以用 CSS 把它从一端滑到另一端。
+
+## 用法
+
+```tsx
+import { Switch, SwitchThumb } from "@ui-sdk/react/switch";
+
+<label>
+  飞行模式
+  <Switch><SwitchThumb /></Switch>
+</label>;
+```
+
+点击文字或开关都能切换。`Switch` 渲染的是带 `switch` 角色的按钮，另有一个隐藏的原生复选框参与表单。
+
+## 标签、说明与整卡点击
+
+设置需要解释时，用[字段](/docs/components/field)的 `FieldLabel` 与 `FieldDescription`，字段会把两者都关联到开关：
+
+```tsx
+import { Field, FieldDescription, FieldLabel } from "@ui-sdk/react/field";
+
+<Field>
+  <div>
+    <FieldLabel>每周汇总</FieldLabel>
+    <FieldDescription>每周一发送上周摘要。</FieldDescription>
+  </div>
+  <Switch defaultChecked><SwitchThumb /></Switch>
+</Field>;
+```
+
+想让整张卡片都可点击，把标签的 `::after` 铺满卡片，再用 `:has([data-checked])` 表达卡片的开启态：
+
+```css
+[data-slot="field"] { position: relative; }
+[data-slot="field"] [data-slot="field-label"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+[data-slot="field"]:has([data-checked]) { border-color: var(--color-brand); }
+```
+
+## 受控与保存后再生效
+
+传 `checked` 与 `onCheckedChange` 即可自己持有状态。`details.reason` 区分 `press`、`reset`、`restore` 与 `imperative`，`details.cancel()` 保留当前状态。
+
+要让开关在保存成功后才真正切换，先在回调里取消这次变更，保存完成后用控制器以 `imperative` 原因写回，并在回调里放行这个原因：
+
+```tsx
+import { createSwitchController, Switch, SwitchThumb } from "@ui-sdk/react/switch";
+
+const backups = createSwitchController();
+const [saving, setSaving] = React.useState(false);
+
+<label>
+  自动备份
+  <Switch
+    controller={backups}
+    aria-busy={saving}
+    onCheckedChange={(next, details) => {
+      if (details.reason === "imperative") return;
+      details.cancel();
+      if (saving) return;
+      setSaving(true);
+      save(next).then(() => {
+        backups.setChecked(next, { reason: "imperative" });
+        setSaving(false);
+      });
+    }}
+  >
+    <SwitchThumb />
+  </Switch>
+</label>;
+```
+
+`aria-busy` 告知辅助技术正在处理，真正阻止重复改动的是回调里的取消与 `saving` 判断。保存期间可以在 `SwitchThumb` 里放一个加载指示。控制器由 `createSwitchController()` 创建，提供 `toggle / getChecked / setChecked / focus`，写入被取消时返回 `false`。参见[控制器](/docs/concepts/controllers)与[状态与事件](/docs/concepts/state-and-events)。
+
+## 表单与校验
+
+传 `name` 才参与提交：开启时提交 `value`（默认 `"on"`），关闭时不提交任何数据；重置回到 `defaultChecked`，`form` 可关联页面中其他表单的 id。
+
+```tsx
+<FieldSet>
+  <FieldLegend>邮件通知</FieldLegend>
+  <label>
+    产品动态
+    <Switch name="updates"><SwitchThumb /></Switch>
+  </label>
+  <label>
+    每周汇总
+    <Switch name="digest" value="weekly" defaultChecked><SwitchThumb /></Switch>
+  </label>
+</FieldSet>
+```
+
+`required` 会阻止提交直到开关打开。放进带 `FieldError` 的字段里，错误显示在开关下方并与它关联。`disabled` 不可聚焦、不可改动、不提交，外层 `<fieldset disabled>` 同样生效；`readOnly` 保留聚焦与提交，但不接受改动。参见[表单](/docs/concepts/forms)。
+
+## 样式与状态
+
+开关与滑块都用 `data-checked` / `data-unchecked` 表达开关态，另有 `data-disabled`、`data-readonly`、`data-required`。校验失败时只有 `switch` 会得到 `data-invalid` 与 `aria-invalid`，`switch-thumb` 不会。
+
+```css
+[data-slot="switch"] {
+  inline-size: 2.5rem;
+  block-size: 1.5rem;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--color-border);
+}
+[data-slot="switch"][data-checked] { background: var(--color-brand); }
+[data-slot="switch-thumb"] {
+  block-size: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--color-card);
+  transition: translate 0.15s ease;
+}
+[data-slot="switch"][data-checked] [data-slot="switch-thumb"] { translate: 1rem 0; }
+[dir="rtl"] [data-slot="switch"][data-checked] [data-slot="switch-thumb"] { translate: -1rem 0; }
+```
+
+用 `translate` 滑动滑块，并在 `dir="rtl"` 下反向。`Switch` 与 `SwitchThumb` 都接受 `render`：传元素时它的 props 与部件 props 合并，传函数时收到 props 与状态，可以按 `state.checked` 渲染不同图标，但要保留部件的 props，语义与键盘行为才不会断。详见[样式与动画](/docs/concepts/styling-and-animation)与[部件与组合](/docs/concepts/parts-and-composition)。
+
+## API
+
+`Switch` 常用属性：
+
+| 属性 | 类型 | 说明 |
+| --- | --- | --- |
+| `checked` | `boolean` | 受控开关状态。 |
+| `defaultChecked` | `boolean` | 非受控初始状态，重置回到它。 |
+| `onCheckedChange` | `(checked, details) => void` | 状态将要变化时触发，可 `details.cancel()`。 |
+| `name` / `form` | `string` | 提交字段名（不传则不提交）与关联表单 id。 |
+| `value` | `string` | 开启时提交的值，默认 `"on"`。 |
+| `required` | `boolean` | 未打开时阻止提交。 |
+| `disabled` / `readOnly` | `boolean` | 禁用、只读。 |
+
+开关与滑块共享同一套状态：`checked`、`disabled`、`readOnly`、`required`，可用于渲染函数与按状态取类名。
+
+## 键盘与无障碍
+
+| 按键 | 行为 |
+| --- | --- |
+| `Tab` | 移动到下一个开关。 |
+| `Space` | 打开或关闭。 |
+| `Enter` | 提交所在表单，绝不切换开关。 |
+
+遵循 WAI-ARIA switch 模式。标签在两种状态下保持同一句话，状态由 `switch` 角色自身表达，不要把「开启通知」「关闭通知」写进名字。用包裹的 `label`、`FieldLabel` 或 `aria-label` 命名。
+
+## 相关组件
+
+- [复选框](/docs/components/checkbox)：勾选后随表单提交的选项。
+- [切换按钮](/docs/components/toggle)：工具栏里的按下态按钮，可成组。
+- [字段](/docs/components/field)：标签、说明与校验信息。

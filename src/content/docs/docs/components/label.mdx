@@ -1,0 +1,127 @@
+---
+title: "标签"
+description: "Label 为任意控件命名，并让点击标签把焦点送进控件，包括单选组、滑块这类原生 label 够不到的控件。"
+sidebar:
+  order: 30
+---
+
+`Label`（标签）给控件一个可读的名字，并让点击标签等价于点击控件。原生 `<label>` 只能触达 input、button、select 等可标注元素；`Label` 通过 `htmlFor` 为任意控件命名，包括单选组、滑块，点击标签会把焦点移入其中。需要同时关联描述与校验错误时，改用[字段](/docs/components/field)里的 `FieldLabel`。
+
+## 组合
+
+`Label` 渲染一个原生 `<label>`。它可以用 `htmlFor` 指向旁边的控件，也可以把控件包在内部（此时无需 `id`）：
+
+```text
+Label
+└── Checkbox
+    └── CheckboxIndicator
+```
+
+上例是包裹写法：点击标签文字即可勾选复选框，且双击不会选中标签文本。指向写法见下面的用法。
+
+## 用法
+
+把 `htmlFor` 指向控件的 `id`，标签就为它命名，点击标签会聚焦到选中的单选项：
+
+```tsx
+import { Label } from "@ui-sdk/react/label";
+import { Radio, RadioGroup } from "@ui-sdk/react/radio";
+
+function Plan() {
+  return (
+    <>
+      <Label htmlFor="plan">套餐</Label>
+      <RadioGroup id="plan" defaultValue="pro">
+        <Radio value="free">免费版</Radio>
+        <Radio value="pro">专业版</Radio>
+      </RadioGroup>
+    </>
+  );
+}
+```
+
+浏览器能自行触达的控件（如 input）走原生关联；其余控件由 `Label` 通过 `aria-labelledby` 命名，点击时聚焦、勾选或触发它，行为与原生标签一致。
+
+## 包裹控件
+
+把控件放进 `Label` 内部就不需要 `id`。点击标签任意位置都会勾选复选框：
+
+```tsx
+import { Checkbox, CheckboxIndicator } from "@ui-sdk/react/checkbox";
+import { Label } from "@ui-sdk/react/label";
+import { CheckIcon } from "lucide-react";
+
+function Example() {
+  return (
+    <Label>
+      <Checkbox>
+        <CheckboxIndicator>
+          <CheckIcon aria-hidden="true" />
+        </CheckboxIndicator>
+      </Checkbox>
+      接受条款与条件
+    </Label>
+  );
+}
+```
+
+## 命名滑块与开关
+
+标签指向滑块时，命名的是它的滑块手柄，点击标签会聚焦手柄；指向开关时，点击标签即开关切换：
+
+```tsx
+<Label htmlFor="volume">音量</Label>
+<Slider id="volume" defaultValue={75}>
+  <SliderControl>
+    <SliderTrack>
+      <SliderIndicator />
+      <SliderThumb />
+    </SliderTrack>
+  </SliderControl>
+</Slider>
+```
+
+```tsx
+<Switch id="updates">
+  <SwitchThumb />
+</Switch>
+<Label htmlFor="updates">通过邮件接收产品更新</Label>
+```
+
+## 自定义渲染
+
+传 `render` 可换成别的元素，例如 `render={<span />}`。即便不再是 `<label>`，它仍会命名控件并在点击时触达它。参见[部件与组合](/docs/concepts/parts-and-composition)。
+
+## 样式与状态
+
+`Label` 无样式，只有一个 `data-slot="label"`，本身不带校验等状态属性（那些属于 `FieldLabel`）。双击标签不会选中文本，因此无需额外写 `user-select: none`：
+
+```css
+[data-slot="label"] {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-fg);
+}
+```
+
+## API
+
+`Label` 接受原生 `<label>` 的全部属性，另加：
+
+- `htmlFor`（`string`）：指向控件的 `id`，为它命名并让点击触达它。
+- `render`（`ReactElement | 函数`）：替换渲染的元素或组件，行为保持不变。
+- `debug`（`boolean`）：开发构建下把每次状态变更及其原因打印到控制台。
+
+## 键盘与无障碍
+
+- 对可标注元素走原生 `<label for>`；对其余控件用 `aria-labelledby` 命名。控件自带的 `aria-label` 或 `aria-labelledby` 优先级更高，会保留作者给的名字。
+- 点击标签的行为与原生标签一致：勾选复选框、开关或单选，聚焦单选组里选中的项，其余控件则聚焦。
+- 点击禁用控件的标签不产生任何效果，也不移动焦点。
+- 标签可以命名在它之后才渲染的控件。
+
+## 相关组件
+
+- [字段](/docs/components/field)：需要把描述与错误一并关联到控件时用 `FieldLabel`。
+- [复选框](/docs/components/checkbox)：常与标签包裹或指向搭配。
+- [单选组](/docs/components/radio)：标签命名整组并聚焦选中项。
+- [滑块](/docs/components/slider)：标签命名其手柄。

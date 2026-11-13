@@ -1,0 +1,46 @@
+---
+import {
+	SelectDemo,
+	TabsDemo,
+	ComboboxDemo,
+	SwitchDemo,
+	SliderDemo,
+	ToggleDemo,
+	ToastDemo,
+	DialogDemo,
+	AlertDialogDemo,
+	MenuDemo,
+	PopoverDemo,
+	TooltipDemo,
+} from "@/demos/DocDemos";
+
+type Props = {
+	name:
+		| "select"
+		| "tabs"
+		| "combobox"
+		| "switch"
+		| "slider"
+		| "toggle"
+		| "toast"
+		| "dialog"
+		| "alert-dialog"
+		| "menu"
+		| "popover"
+		| "tooltip";
+};
+const { name } = Astro.props;
+---
+
+{name === "select" && <SelectDemo client:visible />}
+{name === "tabs" && <TabsDemo client:visible />}
+{name === "combobox" && <ComboboxDemo client:visible />}
+{name === "switch" && <SwitchDemo client:visible />}
+{name === "slider" && <SliderDemo client:visible />}
+{name === "toggle" && <ToggleDemo client:visible />}
+{name === "toast" && <ToastDemo client:visible />}
+{name === "dialog" && <DialogDemo client:visible />}
+{name === "alert-dialog" && <AlertDialogDemo client:visible />}
+{name === "menu" && <MenuDemo client:visible />}
+{name === "popover" && <PopoverDemo client:visible />}
+{name === "tooltip" && <TooltipDemo client:visible />}

@@ -1,0 +1,160 @@
+---
+title: "对话框"
+description: "Dialog 在页面之上打开一个聚焦任务：管理焦点、Esc、外部按压与焦点归还，支持表单、模态级别与底部面板呈现。"
+sidebar:
+  order: 52
+---
+
+`Dialog`（对话框）给一个任务独立的空间：分享链接、编辑记录、收集几项信息。它负责焦点、Escape、外部按压与关闭后回到起点。需要明确回答才能继续的动作用[警告对话框](/docs/components/alert-dialog)；贴着屏幕边缘、可拖拽的面板用[抽屉](/docs/components/drawer)。
+
+## 演示
+
+打开「新建项目」，填写名称并提交，`method="dialog"` 的表单校验通过后关闭对话框：
+
+<DocDemo name="dialog" />
+
+## 组合
+
+```text
+Dialog
+├── DialogTrigger
+├── DialogBackdrop
+└── DialogContent
+    ├── DialogTitle
+    ├── DialogDescription
+    └── DialogClose
+```
+
+标题为对话框命名，描述补充上下文，可以有多个 Close 部件（纯图标的关闭按钮记得给 `aria-label`）。`DialogBackdrop` 可选；不放它时可以直接给内容的 `::backdrop` 写样式。`DialogContent` 是进入浏览器顶层的 `div`（popover），不是原生 `<dialog>`。
+
+## 用法
+
+```tsx
+import {
+  Dialog,
+  DialogBackdrop,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from "@ui-sdk/react/dialog";
+
+function Example() {
+  return (
+    <Dialog>
+      <DialogTrigger>分享</DialogTrigger>
+      <DialogBackdrop />
+      <DialogContent>
+        <DialogTitle>分享链接</DialogTitle>
+        <DialogDescription>拥有此链接的人都可以查看。</DialogDescription>
+        <DialogClose>完成</DialogClose>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+内容很长时，把标题与按钮留在滚动区外，中间区域 `overflow-y: auto` 并限制高度；`initialFocus="content"` 让阅读从顶部开始。
+
+## 表单
+
+`method="dialog"` 的表单在有效提交时关闭对话框，提交按钮的 `value` 成为 `returnValue`，与 Close 部件的 `value` 一致。普通表单则保持打开，由你自己决定何时关闭。
+
+```tsx
+<Dialog
+  onOpenChange={(open, details) => {
+    if (!open && details.returnValue) save(details.returnValue);
+  }}
+>
+  <DialogTrigger>新建文章</DialogTrigger>
+  <DialogContent>
+    <DialogTitle>新建文章</DialogTitle>
+    <form method="dialog">
+      <input name="title" required aria-label="标题" />
+      <button type="submit" value="draft">存草稿</button>
+      <button type="submit" value="published">发布</button>
+    </form>
+  </DialogContent>
+</Dialog>
+```
+
+## 模态与关闭行为
+
+`modal` 控制对话框与页面如何共处：
+
+- `true`（默认）：页面 inert、锁定滚动，Tab 锁在对话框内。
+- `"trap-focus"`：Tab 仍锁在内部，但页面可滚动、可点击。
+- `false`：与页面并存，焦点可以离开；焦点在内部时 Esc 仍可关闭。
+
+`closeOnOutsidePress` 决定外部按压是否关闭（按压在外部释放才算，拖选文本不会误关）。有未保存更改时设 `dismissible={false}`，被拒绝的关闭会触发 `onDismissAttempt`，在那里询问「放弃更改？」；Close 部件与控制器始终能关。模态期间要保持可用的元素（聊天入口等）传给 `persistentElements`。
+
+## 底部面板呈现
+
+`presentation="sheet"` 把同一个任务从屏幕底部滑出，可下滑关闭；`"auto"` 在小型触摸屏幕上用 sheet，其余用居中对话框，每次打开时决定。用 `data-presentation` 区分两种布局的样式；sheet 自己管理位置与移动，不要再套居中对话框的位移动画。
+
+```tsx
+<Dialog presentation="auto">
+  <DialogTrigger>编辑资料</DialogTrigger>
+  <DialogContent>{/* 同一份内容，两种呈现 */}</DialogContent>
+</Dialog>
+```
+
+## 受控与快捷键
+
+传 `open` 并在 `onOpenChange` 里更新，`details.cancel()` 可拦截，`onOpenChangeComplete` 在动画结束后回调。触发器的 `shortcut`（如 `"mod+j"`）从页面任何位置打开对话框，`DialogShortcut` 显示当前平台的按键并设置 `aria-keyshortcuts`。要从组件树外控制，用 `createDialogController()` 创建控制器传给根与外部触发器，`open()` 返回的 Promise 在关闭时带着 `returnValue` resolve。参见[控制器](/docs/concepts/controllers)。
+
+## 样式与状态
+
+各部件的 `data-slot` 为 `dialog-trigger`、`dialog-backdrop`、`dialog-content`、`dialog-close` 等：
+
+- 触发器、背板与内容：`data-open` / `data-closed`；背板与内容另有 `data-starting-style` / `data-ending-style` 供入场退场动画。
+- 内容：`data-presentation="dialog" | "sheet"` 标记本次呈现方式，软键盘遮挡时带 `data-keyboard`。
+- Close 部件：`action` 运行中带 `data-pending`。
+
+内容上的 CSS 变量：`--dialog-stack`（嵌套在其上方的对话框数）、`--keyboard-inset`、`--visual-viewport-width` / `--visual-viewport-height` / `--visual-viewport-top`；以 sheet 呈现时改用 `--drawer-progress`（开合进度 0 到 1）、`--drawer-dim`（页面压暗程度）、`--drawer-stack`，并可自设 `--sheet-backdrop` 颜色。
+
+```css
+[data-slot="dialog-content"] {
+  transition: opacity 0.2s, translate 0.25s, scale 0.25s;
+}
+[data-slot="dialog-content"]:is([data-starting-style], [data-ending-style]) {
+  opacity: 0;
+  translate: 0 16px;
+  scale: 0.96;
+}
+```
+
+退场播完才卸载；`keepMounted` 可让内容关闭后留在页面里（隐藏），交给动画库驱动。详见[弹出层](/docs/concepts/popups)与[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `open` / `defaultOpen` | `boolean` | 受控 / 非受控的开合状态。 |
+| `onOpenChange` | `(open, details) => void` | 开合变更；`details.reason`、`details.returnValue`、`details.cancel()`。 |
+| `onOpenChangeComplete` | `(open: boolean) => void` | 动画结束后报告开合完成。 |
+| `modal` | `boolean \| "trap-focus"` | 模态级别，默认 `true`。 |
+| `closeOnOutsidePress` | `boolean` | 外部按压是否关闭。 |
+| `dismissible` | `boolean` | Esc、外部按压、返回手势能否关闭。 |
+| `onDismissAttempt` | `(details) => void` | 关闭被拒绝时回调。 |
+| `presentation` | `"dialog" \| "sheet" \| "auto"` | 呈现方式，`"auto"` 按屏幕决定。 |
+| `persistentElements` | `(string \| Element)[] \| (() => Element[])` | 模态期间保持可用的页面元素。 |
+| `controller` | `PopupController` | 用 `createDialogController()` 创建。 |
+
+`DialogContent` 另有 `initialFocus`（打开时焦点去向）、`finalFocus`（关闭后焦点去向）、`keepMounted`、`container`；`DialogClose` 有 `value` 与 `action`（返回 Promise 时保持打开直到完成）。
+
+## 键盘与无障碍
+
+- 触发器：`Enter` / `Space` 打开；快捷键从页面任何位置打开。
+- `Tab` / `Shift+Tab` 在控件间移动，模态时首尾循环；`Escape` 关闭最上层对话框并把焦点还给触发器。
+- 打开时焦点移到第一个可聚焦元素；触摸打开聚焦内容本身，避免弹出软键盘。
+
+遵循 WAI-ARIA 模态对话框模式：模态时带 `aria-modal`，由标题命名，描述渲染时作为 accessible description。
+
+## 相关组件
+
+- [警告对话框](/docs/components/alert-dialog)：需要明确回答、点外部不关闭的确认。
+- [抽屉](/docs/components/drawer)：贴边面板，支持拖拽与吸附点。
+- [弹出层](/docs/concepts/popups)：顶层渲染、模态与 dismiss 的共享模型。
+- [控制器](/docs/concepts/controllers)：从任意位置开关对话框并等待结果。

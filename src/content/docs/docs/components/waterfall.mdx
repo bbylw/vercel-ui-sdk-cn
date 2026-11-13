@@ -1,0 +1,315 @@
+---
+title: "瀑布流"
+description: "Waterfall 把请求或调用链画成共享时间轴上的条形，支持嵌套展开、选中、缩放、虚拟化与 treegrid 键盘导航。"
+sidebar:
+  order: 96
+---
+
+`Waterfall`（瀑布流）用于任何有开始时间、有耗时、还会嵌套的东西：浏览器的网络请求、OpenTelemetry 调用链、构建的各个步骤。每个 span 是一行，条形落在同一条时间轴上；键盘与屏幕阅读器用户得到一个可以逐行走的 treegrid。这里说的是时间轴瀑布图，不是图片墙那种瀑布流布局。
+
+## 组合
+
+```text
+Waterfall
+├── WaterfallHeaderRow
+│   ├── WaterfallColumnHeader
+│   └── WaterfallColumnHeader
+│       ├── WaterfallAxis
+│       │   └── WaterfallTick
+│       └── WaterfallMark
+├── WaterfallRow
+│   ├── WaterfallRowHeader
+│   │   └── WaterfallIndicator
+│   ├── WaterfallCell
+│   └── WaterfallBar
+└── WaterfallRow
+    ├── WaterfallRowHeader
+    └── WaterfallBar
+```
+
+所有 span 作为 `items` 传入，并为每个 span 渲染一个带其 `value` 的 `WaterfallRow`。行是平级兄弟节点：层级、在兄弟中的位置与子级都由组件从 `items` 读出。记得给瀑布流一个可访问名。
+
+`WaterfallRowHeader` 命名 span，有子级时里面放 `WaterfallIndicator`；`WaterfallBar` 是时间轴上的那个单元格；`WaterfallCell` 是其他列，例如状态或大小。表头行、时间轴与标记都可选。
+
+## 用法
+
+每个 span 有 `value`、`label`、以毫秒计的 `start` 与 `duration`，以及它发起的子 span `children`：
+
+```tsx
+import {
+  Waterfall,
+  WaterfallBar,
+  WaterfallRow,
+  WaterfallRowHeader,
+  type WaterfallData,
+} from "@ui-sdk/react/waterfall";
+
+const requests: WaterfallData = [
+  { value: "document", label: "/", start: 0, duration: 182 },
+  { value: "styles", label: "app.css", start: 190, duration: 96 },
+  { value: "script", label: "app.js", start: 192, duration: 410 },
+];
+
+function Example() {
+  return (
+    <Waterfall aria-label="网络请求" items={requests}>
+      {requests.map((request) => (
+        <WaterfallRow key={request.value} value={request.value}>
+          <WaterfallRowHeader>{request.label}</WaterfallRowHeader>
+          <WaterfallBar />
+        </WaterfallRow>
+      ))}
+    </Waterfall>
+  );
+}
+```
+
+每行写出 `--waterfall-start` 与 `--waterfall-size`（span 在轴上的起点与占比，百分比），条形位置纯用 CSS 完成，不需要 JavaScript 布局：
+
+```css
+[data-slot="waterfall-bar"] {
+  position: relative;
+}
+[data-slot="waterfall-bar"]::before {
+  content: "";
+  position: absolute;
+  inset-block: 6px;
+  inset-inline-start: var(--waterfall-start);
+  width: var(--waterfall-size);
+  border-radius: 3px;
+  background: var(--color-info);
+}
+```
+
+不写子内容时，瀑布流会为每个 span 渲染一行，含行头与条形。
+
+## 时间轴、刻度与标记
+
+`WaterfallHeaderRow` 与 `WaterfallColumnHeader` 组成表头。`WaterfallAxis` 在整数时刻渲染 `WaterfallTick`，最多 `maxTicks` 个；`WaterfallMark` 画一条贯穿所有行的时刻线（例如 DOMContentLoaded），位置由 `--waterfall-mark` 给出。时间轴对屏幕阅读器隐藏，它们听到的是每个条形自己的时间。
+
+```tsx
+const sizes: Record<string, string> = { document: "14 kB", styles: "8 kB", script: "212 kB" };
+
+<Waterfall
+  aria-label="网络请求"
+  items={requests}
+  format={{ style: "unit", unit: "millisecond", unitDisplay: "narrow" }}
+  getBarLabel={(request, { start, duration }) =>
+    `${sizes[request.value]}，${start} 开始，耗时 ${duration}`
+  }
+>
+  <WaterfallHeaderRow>
+    <WaterfallColumnHeader>名称</WaterfallColumnHeader>
+    <WaterfallColumnHeader>大小</WaterfallColumnHeader>
+    <WaterfallColumnHeader aria-label="时间轴">
+      <WaterfallAxis maxTicks={5} />
+      <WaterfallMark time={620}>DOMContentLoaded</WaterfallMark>
+    </WaterfallColumnHeader>
+  </WaterfallHeaderRow>
+  {requests.map((request) => (
+    <WaterfallRow key={request.value} value={request.value}>
+      <WaterfallRowHeader>{request.label}</WaterfallRowHeader>
+      <WaterfallCell>{sizes[request.value]}</WaterfallCell>
+      <WaterfallBar />
+    </WaterfallRow>
+  ))}
+</Waterfall>;
+```
+
+`format` 接受 `Intl.NumberFormat` 选项或返回文本的函数，决定轴上与屏幕阅读器里的时间写法；`locale` 默认跟随页面 `lang`，服务端首帧用英文。`getBarLabel` 请按页面语言设置。`WaterfallAxis` 的子内容也可以是接收 `ticks` 的函数，用来渲染自己的 `WaterfallTick`（每个 tick 有 `time`、`label`、`position`、`outside`）。
+
+## 嵌套与选择
+
+带 `children` 的 span 可以展开与折叠：点击它的指示器，或在行上按左右方向键。只渲染当前可见的行时，把 `expanded` 放进状态，交给 `visibleWaterfallRows(items, expanded)` 按顺序摊平已展开的 span。点击行或在行上按 `Enter` / `Space` 会选中它，`value` 与 `onValueChange` 保存选中的 span，例如供详情面板使用。
+
+```tsx
+import { createWaterfallController, visibleWaterfallRows } from "@ui-sdk/react/waterfall";
+
+function Example() {
+  const [spans] = React.useState(() => createWaterfallController());
+  const [expanded, setExpanded] = React.useState(["checkout"]);
+  const [value, setValue] = React.useState<string | null>(null);
+  const rows = visibleWaterfallRows(trace, expanded);
+
+  return (
+    <div data-slot="stack">
+      <div data-slot="controls">
+        <button type="button" onClick={() => spans.expandAll()}>全部展开</button>
+        <button type="button" onClick={() => spans.collapseAll()}>全部折叠</button>
+      </div>
+      <Waterfall
+        aria-label="结账调用链"
+        items={trace}
+        controller={spans}
+        expanded={expanded}
+        onExpandedChange={setExpanded}
+        value={value}
+        onValueChange={setValue}
+      >
+        {rows.map(({ item }) => (
+          <WaterfallRow key={item.value} value={item.value}>
+            <WaterfallRowHeader>
+              {item.children && (
+                <WaterfallIndicator>
+                  <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="m6 3 5 5-5 5" fill="none" stroke="currentColor" />
+                  </svg>
+                </WaterfallIndicator>
+              )}
+              {item.label}
+            </WaterfallRowHeader>
+            <WaterfallBar />
+          </WaterfallRow>
+        ))}
+      </Waterfall>
+    </div>
+  );
+}
+```
+
+`trace` 是带 `children` 的 `WaterfallData`。也可以渲染全部行，让组件隐藏折叠 span 内部的行（被隐藏的行带 `hidden`），这样 `expanded` 可以保持非受控。选择与展开互相独立：`value` / `onValueChange` 管选中，`expanded` / `onExpandedChange` 管展开，非受控用 `defaultValue` 与 `defaultExpanded`，回调里 `details.cancel()` 可以拒绝变更。控制器由 `createWaterfallController()` 创建，`reveal(value)` 会展开某个 span 的所有祖先并聚焦它的行。
+
+## 缩放与平移
+
+`range` 是轴显示的时间区间 `[start, end]`（毫秒）。改它就是缩放或平移：条形与刻度跟着走，超出区间的条形收缩到边缘。不传时轴从最早的 start 跑到最晚的 end。
+
+```tsx
+const full: [number, number] = [0, 1200];
+const [range, setRange] = React.useState(full);
+
+<Waterfall aria-label="页面渲染" items={trace} range={range} defaultExpanded={["render"]}>
+  …
+</Waterfall>;
+```
+
+## 大调用链的虚拟化
+
+调用链可能有上万个 span。只渲染视口附近的行：用 `visibleWaterfallRows` 摊平已展开的 span，再按偏移渲染附近几行。组件仍会报告每行的层级与在兄弟中的位置，屏幕阅读器因此能听到完整层级。给根 `aria-rowcount`（可见行总数），给每行 `aria-rowindex`（索引加一），读屏软件数的是整条调用链而不是页面上这几行。
+
+`onHighlight` 报告键盘移到的行索引，在这里把它滚进视口，尚未渲染的行才能随后拿到焦点。无论调用链多长，一次方向键只改动它经过的两行。
+
+```tsx
+const rows = visibleWaterfallRows(trace, expanded);
+const rowHeight = 32;
+
+<Waterfall
+  aria-label="构建调用链"
+  aria-rowcount={rows.length}
+  items={trace}
+  expanded={expanded}
+  onExpandedChange={setExpanded}
+  onHighlight={(_value, { index }) => {
+    const el = scroller.current;
+    if (!el) return;
+    const top = index * rowHeight;
+    if (top < el.scrollTop) el.scrollTop = top;
+    else if (top + rowHeight > el.scrollTop + el.clientHeight)
+      el.scrollTop = top + rowHeight - el.clientHeight;
+  }}
+  style={{ height: rows.length * rowHeight }}
+>
+  {rows.slice(start, end).map(({ item, index }) => (
+    <WaterfallRow key={item.value} value={item.value} aria-rowindex={index + 1} style={{ top: index * rowHeight }}>
+      <WaterfallRowHeader>{item.label}</WaterfallRowHeader>
+      <WaterfallBar />
+    </WaterfallRow>
+  ))}
+</Waterfall>;
+```
+
+`scroller` 是外层滚动容器的 ref，`start` 与 `end` 由滚动位置算出。
+
+## 样式与状态
+
+行的状态由 `data-selected`、`data-expanded`、`data-branch`、`data-level` 表达，行头、指示器、单元格与条形都带着它们。焦点在行与单元格之间移动，用 `:focus-visible` 画焦点态。示例里的 `data-slot="stack"` 与 `data-slot="controls"` 只是布局容器，用 flex 或 grid 自己定义。
+
+- `waterfall-row`、`waterfall-row-header`、`waterfall-cell`、`waterfall-bar`：`data-level`（从 1 起的深度）、`data-branch`（有子级）、`data-expanded`、`data-selected`。
+- `waterfall-indicator`：`data-level`、`data-branch`、`data-expanded`。
+- `waterfall-mark`：`data-outside`（时刻在区间外，不显示在轴上）。
+
+CSS 变量：`--waterfall-level`（深度，用于缩进行头）、`--waterfall-start`（条形起点，夹取到区间内）与 `--waterfall-size`（条形宽度，span 在区间外时为 0），以及 `--waterfall-tick` 与 `--waterfall-mark`（刻度与标记在轴上的百分比位置）。
+
+```css
+[data-slot="waterfall-row-header"] {
+  padding-inline-start: calc((var(--waterfall-level) - 1) * 16px);
+}
+[data-slot="waterfall-row"][data-selected] {
+  background: var(--color-brand-wash);
+}
+[data-slot="waterfall-row"][data-selected] [data-slot="waterfall-bar"]::before {
+  background: var(--color-brand);
+}
+[data-slot="waterfall-indicator"] {
+  transition: transform 120ms ease;
+}
+[data-slot="waterfall-indicator"][data-expanded] {
+  transform: rotate(90deg);
+}
+[data-slot="waterfall-tick"],
+[data-slot="waterfall-mark"] {
+  position: absolute;
+}
+[data-slot="waterfall-tick"] {
+  inset-inline-start: var(--waterfall-tick);
+}
+[data-slot="waterfall-mark"] {
+  inset-inline-start: var(--waterfall-mark);
+  border-inline-start: 1px dashed var(--color-warning);
+}
+[data-slot="waterfall-mark"][data-outside] {
+  display: none;
+}
+```
+
+详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+`Waterfall`：
+
+| 属性 | 类型 | 说明 |
+| --- | --- | --- |
+| `items` | `WaterfallData` | 全部 span，必填。 |
+| `range` | `[number, number]` | 轴显示的毫秒区间，改它即缩放或平移。 |
+| `value` / `defaultValue` | `string \| null` | 选中的 span，`null` 表示不选。 |
+| `onValueChange` | `(value, details) => void` | 选中变化前触发，可 `details.cancel()`。 |
+| `expanded` / `defaultExpanded` | `string[]` | 展开的 span 值列表。 |
+| `onExpandedChange` | `(expanded, details) => void` | 展开或折叠前触发，可 `details.cancel()`。 |
+| `onHighlight` | `(value, { index }) => void` | 键盘移到某行时触发，用于把行滚进视口。 |
+| `format` | `Intl.NumberFormatOptions \| ((ms: number) => string)` | 轴上与读屏时的时间写法。 |
+| `locale` | `string` | 时间格式化的地区。 |
+| `getBarLabel` | `(item, details) => string` | 条形对屏幕阅读器说的话。 |
+| `controller` | `object` | `createWaterfallController()` 创建的控制器。 |
+| `debug` | `boolean` | 开发构建里把每次状态变化与原因打到控制台。 |
+
+`items` 里每个 span：`value`（唯一标识）、`label`（行上显示，也是键入定位匹配的内容）、`start`、`duration`（毫秒，同一时钟）、可选 `children`。`WaterfallAxis` 有 `maxTicks`；`WaterfallTick` 与 `WaterfallMark` 有必填的 `time`；`WaterfallRow` 有必填的 `value`。
+
+`visibleWaterfallRows(items, expanded)` 返回 `{ item, parent, level, index }`：span 原对象、父 span 的值（顶层为 `null`）、深度（顶层为 1）、在可见行中的位置（从 0 起）。
+
+控制器方法：`getValue / setValue / getExpanded / setExpanded / isExpanded / expand / collapse / toggle / expandAll / collapseAll / reveal / focus`。写入方法接受可选的 `{ reason, event }`，被取消时返回 `false`；`collapse` 会把焦点移出行内，`reveal` 展开祖先并聚焦该行。参见[控制器](/docs/concepts/controllers)。
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA treegrid 模式：行是 `row`，带 `aria-level`、`aria-posinset`、`aria-setsize`，选中行带 `aria-selected="true"`，有子级的 span 带 `aria-expanded`。`WaterfallRowHeader` 是 `rowheader`，焦点沿一列下移时屏幕阅读器会重复 span 名称；每个 `WaterfallBar` 是 `gridcell`，以开始时间与耗时命名，例如「120 毫秒开始，持续 340 毫秒」，时间用 `Intl` 按页面语言格式化。
+
+整个瀑布流只有一个 Tab 停靠点：`Tab` 进入选中行（没有则第一行），离开后再回来回到上次聚焦的行或单元格。
+
+| 按键 | 动作 |
+| --- | --- |
+| `ArrowDown` / `ArrowUp` | 聚焦下一行或上一行；在单元格里保持同一列。 |
+| `ArrowRight` | 在行上展开它，或进入第一个单元格；在单元格里右移。 |
+| `ArrowLeft` | 在单元格里左移，再回到行；在行上折叠它，或聚焦父级。 |
+| `Home` / `End` | 聚焦第一行或最后一行；在单元格里到本行首尾单元格。 |
+| `Ctrl` + `Home` / `End` | 聚焦第一行或最后一行，保持当前列。 |
+| `PageUp` / `PageDown` | 移动一页行。 |
+| `Enter` / `Space` | 选中该行。 |
+| 键入字符 | 聚焦下一个 label 以该文本开头的行。 |
+
+Mac 上用 Command 代替 Ctrl；从右到左的文本里左右键交换。
+
+## 相关组件
+
+- [树](/docs/components/tree)：同样是层级数据的键盘导航，但没有时间轴。
+- [时间线](/docs/components/timeline)：按日期排列的事件流。
+- [滚动区域](/docs/components/scroll-area)：为长调用链提供自定义滚动条。
+- [控制器](/docs/concepts/controllers)：从外部展开、选中与聚焦某一行。

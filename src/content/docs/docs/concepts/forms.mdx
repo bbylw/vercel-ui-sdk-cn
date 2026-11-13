@@ -1,0 +1,117 @@
+---
+title: "表单"
+description: "给控件 name 即可随表单提交：用 Field 连接标签、描述与错误，处理原生校验、重置与服务端拒绝。"
+sidebar:
+  order: 6
+---
+
+ui-sdk 的控件遵循原生表单约定。给控件一个 `name`，它的值就随表单提交——[选择器](/docs/components/select)、[组合框](/docs/components/combobox)与输入框、复选框都一样。[字段](/docs/components/field)（Field）把控件连到它的标签、描述与错误消息。
+
+## 提交值
+
+```tsx
+import { Checkbox } from "@ui-sdk/react/checkbox";
+
+function Example() {
+  return (
+    <form action="/preferences" method="post">
+      <label>
+        <Checkbox name="updates" value="yes" defaultChecked />
+        接收邮件更新
+      </label>
+      <button type="submit">保存</button>
+      <button type="reset">重置</button>
+    </form>
+  );
+}
+```
+
+选中时提交 `updates=yes`，重置恢复默认值。
+
+## 重置受控值
+
+重置同样走 `onCheckedChange`。像处理点击一样在那里更新你的 React 状态：
+
+```tsx
+const [checked, setChecked] = React.useState<CheckedState>(true);
+
+<Checkbox
+  name="updates"
+  defaultChecked
+  checked={checked}
+  onCheckedChange={(next, details) => {
+    setChecked(next);
+    // details.reason === "reset"
+  }}
+/>;
+```
+
+`defaultChecked` 提供重置目标值，回调收到 `true` 且 `details.reason` 为 `"reset"`。仅当重置请求的值与当前不同才触发回调；已经在默认值上则不触发。参见[状态与事件](/docs/concepts/state-and-events)。
+
+## 标注与校验字段
+
+`Field` 把控件连到标签、描述与错误：
+
+```tsx
+import { Field, FieldDescription, FieldError, FieldLabel } from "@ui-sdk/react/field";
+import { Input } from "@ui-sdk/react/input";
+
+<Field name="email">
+  <FieldLabel>邮箱</FieldLabel>
+  <Input type="email" required />
+  <FieldDescription>仅用于发送回执。</FieldDescription>
+  <FieldError />
+</Field>;
+```
+
+把 `Input` 换成[多行文本](/docs/components/textarea)、[复选框](/docs/components/checkbox)、[开关](/docs/components/switch)、[单选框](/docs/components/radio)或[选择器](/docs/components/select)即可，连接方式见[字段](/docs/components/field)。
+
+支持原生表单约定的控件接受这些属性：
+
+| 属性 | 作用 |
+| --- | --- |
+| `name` | 提交的字段名。没有它就不提交值。 |
+| `required` | 提交前必须有值。 |
+| `disabled` | 禁止交互，且不参与提交。 |
+| `readOnly` | 禁止编辑，但仍可聚焦、仍提交值。 |
+| `form` | 控件在表单外时，按 id 连到某个表单。 |
+
+## 处理提交
+
+正常提交时，浏览器先检查 `required`、`type="email"` 等约束，再运行你的处理器。
+
+服务端仍可能拒绝一个看起来合法的值。把 `invalid` 传给字段并显示服务端消息；用户编辑时清除消息、把 `invalid` 还原为 `undefined`，让字段回到原生校验：
+
+```tsx
+const [error, setError] = React.useState("");
+
+async function save(event: React.FormEvent<HTMLFormElement>) {
+  event.preventDefault();
+  const response = await fetch("/api/preferences", {
+    method: "POST",
+    body: new FormData(event.currentTarget),
+  });
+  setError(response.ok ? "" : "该邮箱已被占用。");
+}
+
+<form onSubmit={save}>
+  <Field name="email" invalid={error ? true : undefined}>
+    <FieldLabel>邮箱</FieldLabel>
+    <Input type="email" required onValueChange={() => setError("")} />
+    <FieldError>{(state) => error || state.message}</FieldError>
+  </Field>
+  <button type="submit">保存</button>
+</form>;
+```
+
+没有处理器时，表单通过它的 `action` 提交，包括 React server action。
+
+<Aside type="tip" title="禁用与只读的区别">
+`disabled` 的控件不可聚焦、不提交；`readOnly` 的控件可聚焦、提交但不可改。两者都会从所在的 `<fieldset disabled>` 或 `Field` 继承状态。需要「可见但不可改且仍提交」时用 `readOnly`。
+</Aside>
+
+## 相关页面
+
+- [字段](/docs/components/field)：标签、描述、错误与控件的连接。
+- [状态与事件](/docs/concepts/state-and-events)：受控值与 `details.reason`。
+- [服务端渲染](/docs/concepts/server-rendering)：首屏 HTML 与水合时机。

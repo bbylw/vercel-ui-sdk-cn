@@ -1,0 +1,69 @@
+---
+title: "样式与动画"
+description: "用 data-slot 与状态属性写样式；用 data-starting-style / data-ending-style 做入场与退场动画。"
+sidebar:
+  order: 3
+---
+
+ui-sdk 组件不渲染样式。它们输出稳定的 `data-slot` 标识和一组 `data-*` 状态属性，以及若干 CSS 自定义属性。你的样式表 targeting 这些属性，就得到完全属于自己的外观。
+
+## 三个抓手
+
+1. **`data-slot`**：部件的稳定名字，如 `data-slot="select-trigger"`、`data-slot="dialog-content"`。用它选中部件，不要用生成的类名或 id。
+2. **状态属性**：`data-open`、`data-closed`、`data-checked`、`data-pressed`、`data-selected`、`data-highlighted`、`data-disabled` 等，随状态出现或消失。
+3. **CSS 自定义属性**：组件在根或弹出层上设置变量，如弹出层的 `--anchor-width`、`--transform-origin`，供你 sizing 与定位。
+
+```css
+[data-slot="select-trigger"][data-open] {
+  border-color: var(--color-brand);
+}
+[data-slot="select-item"][data-highlighted] {
+  background: var(--color-accent);
+}
+```
+
+## 样式层
+
+可选默认外观在 `@layer ui-sdk`。在全局样式顶部声明 `@layer ui-sdk;`（Tailwind 项目放在 `@import "tailwindcss"` 之前），你的未分层样式自然覆盖它。
+
+## 入场与退场
+
+弹出层部件用两个属性标记动画的两端：
+
+- `data-starting-style`：打开后的第一帧存在。把「动画起点」的样式写在它上面，下一帧移除后过渡到打开态。
+- `data-ending-style`：关闭过程中存在。把「动画终点」的样式写在它上面，过渡结束后部件卸载（或保持挂载隐藏）。
+
+```css
+[data-slot="dialog-content"] {
+  transition: opacity 0.18s ease, translate 0.18s ease, scale 0.18s ease;
+}
+[data-slot="dialog-content"][data-starting-style],
+[data-slot="dialog-content"][data-ending-style] {
+  opacity: 0;
+  translate: 0 12px;
+  scale: 0.97;
+}
+```
+
+需要由动画库驱动退场时，给内容传 `keepMounted`，让部件关闭后仍留在页面上（隐藏），由你的库接管退出动画。
+
+<Aside type="tip" title="尊重 reduced motion">
+在 `@media (prefers-reduced-motion: reduce)` 里把过渡与动画关掉，或缩短到近乎即时。行为（焦点、关闭、ARIA）不受影响。
+</Aside>
+
+## 弹出层的背景
+
+模态弹出层进入浏览器顶层，用 `::backdrop` 画遮罩，而不是一个 fixed 的 div——后者会被带 transform 的祖先裁剪：
+
+```css
+[data-slot="dialog-content"]::backdrop {
+  background: oklch(0.12 0.02 260 / 0.55);
+  backdrop-filter: blur(3px);
+}
+```
+
+## 看一套完整外观
+
+下面的行为演示共用一套令牌与弹出层样式，覆盖菜单、弹出框、轻提示、对话框、警告对话框与文字提示：
+
+<BehaviorDemos />

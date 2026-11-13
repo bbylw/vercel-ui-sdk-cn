@@ -1,0 +1,162 @@
+---
+title: "连接智能体"
+description: "用 createAgent 搭桥：snapshot 读状态、act 调用动作、query 查选项，agentTools 接入你的模型，registerTools 发布到 WebMCP。"
+sidebar:
+  order: 1
+---
+
+`createAgent` 把智能体连接到应用里的 ui-sdk 组件。它能读取状态、找到组件支持的动作，并通过组件 API 调用这些动作。这一页带你搭桥、读页面、改值、查选项，再把工具交给你的模型或浏览器。
+
+## 创建桥接
+
+桥接只创建一次：
+
+```ts title="agent.ts"
+import { createAgent } from "@ui-sdk/react/agent";
+
+const agent = createAgent();
+export { agent };
+```
+
+桥接在创建时找到页面上已有的组件，并在新组件创建时注册它们，所以你可以在启动时创建，也可以等助手打开时再创建。用与组件相同包的 agent 入口：
+
+| 框架 | 导入自 |
+| --- | --- |
+| React | `@ui-sdk/react/agent` |
+| Vue | `@ui-sdk/vue/agent` |
+| Svelte | `@ui-sdk/svelte/agent` |
+| Solid | `@ui-sdk/solid/agent` |
+| Web Components | `@ui-sdk/web/agent` |
+
+## 加一个组件
+
+渲染一个带可访问名称的输入框：
+
+```tsx
+import { Input } from "@ui-sdk/react/input";
+import "./agent";
+
+export function ProjectName() {
+  return <Input aria-label="Project name" defaultValue="Apollo" />;
+}
+```
+
+名称既帮屏幕阅读器用户，也帮智能体识别输入框。[字段](/docs/components/field)的标签同样有效。
+
+## 读取页面
+
+组件渲染后调用 `snapshot`：
+
+```ts
+import { agent } from "./agent";
+
+const components = agent.snapshot();
+```
+
+返回：
+
+```json
+[
+  {
+    "ref": "c1",
+    "component": "input",
+    "label": "Project name",
+    "value": "Apollo",
+    "actions": ["setValue", "clear"]
+  }
+]
+```
+
+`ref` 标识这个组件，`actions` 列出它此刻能让智能体做的事。快照里也可能包含已离开页面的组件（如关闭的标签页里的字段），标记为 `offPage: true`。超过 100 个组件时列出前 100 个并附一条说明还有多少，用 `query` 找其余。
+
+## 改变值
+
+用 `act` 调用动作：
+
+```ts
+const result = await agent.act({
+  steps: [{ ref: "Project name", action: "setValue", args: ["Atlas"] }],
+});
+```
+
+输入框现在读到 **Atlas**，它的 `onValueChange` 以 `details.source === "agent"` 运行，应用可据此响应或取消。可用标签或快照里的 `ref`：标签按整词匹配，忽略大小写与重音，`"project name"` 也行；标签有歧义时桥返回错误并列出匹配项，用具体的 `ref` 选定一个。
+
+`result.steps` 报告每步改了什么，`result.values` 含当前字段值。回调可能取消变更，需要确认实际生效时检查这些值。一次调用放多个步骤会按序执行；某步失败时 `result.ok` 为 `false`、`result.error` 说明哪步为何失败，之前的步骤保持已应用。
+
+## 查找列表项
+
+对[选择器](/docs/components/select)、[组合框](/docs/components/combobox)这类有选项的组件，用带 `within` 的 `query` 列出可选值：
+
+```ts
+const [region] = await agent.query({ within: "Region", text: "Europe" });
+```
+
+`region.items` 含至多 50 个匹配选项（各有 `value` 与 `label`），`region.more` 说明超出多少。省略 `text` 列出前 50 个。视组件如何提供选项，桥可能短暂打开它来读取。
+
+`query` 也能在不列出整页的情况下找组件：`agent.query({ text: "Europe" })` 返回标签或行文本含该词的组件，以及选项匹配的列表（选项附在其下）。`kind` 可限定一种，如 `"select"`。
+
+## 接入你的工具
+
+`agentTools` 用名称、描述与 JSON Schema 描述 `snapshot`、`act`、`query`：
+
+```ts
+import { agentTools } from "@ui-sdk/react/agent";
+```
+
+设置你的智能体工具时用这些定义，把每个工具调用路由到 `agent` 上对应的方法并把结果返回给模型。具体如何注册与处理由你的模型 SDK 决定。
+
+工具返回的内容来自页面，可能含用户写的文本（如表格行里的名字）。工具描述会告诉模型把这些当作数据。智能体改动重要内容前，让人用[权限](/docs/agents/permissions)确认。
+
+## 发布到 WebMCP
+
+对支持 WebMCP 的浏览器，用 `registerTools` 把工具发布出去：
+
+```ts title="agent.ts"
+import { createAgent, registerTools } from "@ui-sdk/react/agent";
+
+const agent = createAgent();
+Object.assign(window, { agent });
+
+const unregister = registerTools(agent, {
+  allow: (step) => step.action !== "press" || confirm(`按下 ${step.args[0]}？`),
+});
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(unregister);
+}
+
+export { agent };
+```
+
+`registerTools` 在浏览器支持时通过 WebMCP 发布 `snapshot`、`query`、`act`。它的 `allow` 在浏览器智能体按按钮前先问你。清理函数在开发时 Vite 替换模块时移除旧注册。
+
+在浏览器控制台可检查注册 API 是否存在：`typeof document.modelContext?.registerTool`，支持注册的浏览器返回 `"function"`。返回 `"undefined"` 时控制台示例仍可用，但该浏览器不会从 `registerTools` 收到 WebMCP 工具。
+
+<Aside type="caution" title="工具返回的是用户数据">
+snapshot 与 query 的返回可能包含用户输入的内容。把它们当作不可信数据传给模型，不要当作指令。改动重要内容前用 allow 或 data-agent-confirm 让人确认。
+</Aside>
+
+## 观察变更
+
+`agent.subscribe` 报告 ui-sdk 组件的变更。在两次回合之间收集它们，智能体就知道自上次读页后发生了什么：
+
+```ts
+import type { ObservedChange } from "@ui-sdk/react/observe";
+import { agent } from "./agent";
+
+const changes: ObservedChange[] = [];
+const stop = agent.subscribe((change) => {
+  if (change.source !== "agent") changes.push(change);
+});
+
+// 下一回合前取出并清空队列
+const recentChanges = changes.splice(0);
+```
+
+把 `recentChanges` 放进发给模型的上下文。去掉 source 判断则连智能体自己的变更也收集。
+
+## 相关页面
+
+- [权限](/docs/agents/permissions)：限制智能体能跑的动作、标记需人确认的控件。
+- [智能体概述](/docs/agents)：桥接能做什么、为什么更快。
+- [控制器](/docs/concepts/controllers)：命令式入口，与桥接走同一套组件 API。

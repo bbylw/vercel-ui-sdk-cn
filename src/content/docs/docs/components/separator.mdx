@@ -1,0 +1,147 @@
+---
+title: "分隔线"
+description: "Separator 用一条横线或竖线划分内容组，方向与装饰性语义由你决定，样式完全自己写。"
+sidebar:
+  order: 11
+---
+
+`Separator`（分隔线）在读者应当视为独立的内容组之间画一条线，例如个人资料的头部与简介、菜单里的两组动作。它负责 `separator` 角色与方向语义，线条的粗细、颜色与间距全部由你的 CSS 决定。
+
+## 用法
+
+`Separator` 只有根部件，没有子部件：
+
+```text
+Separator
+```
+
+```tsx
+import { Separator } from "@ui-sdk/react/separator";
+
+function Profile() {
+  return (
+    <section>
+      <h2>顾清和</h2>
+      <p>qinghe@example.com</p>
+      <Separator />
+      <p>负责计费与新手引导流程，评审每一个新的定价页。</p>
+    </section>
+  );
+}
+```
+
+默认横向。屏幕阅读器读到这条线时会播报分隔符及其方向，因此它适合划分真正独立的内容组。
+
+## 竖向分隔
+
+`orientation="vertical"` 用于一行里各项之间的竖线，高度取所在行的高度：
+
+```tsx
+<nav aria-label="法律条款" data-slot="row">
+  <a href="/privacy">隐私</a>
+  <Separator orientation="vertical" />
+  <a href="/terms">条款</a>
+  <Separator orientation="vertical" />
+  <a href="/cookies">Cookie</a>
+</nav>
+```
+
+竖线会拉伸到行内最高的那一项，因此可以跨越「数字 + 说明」这样叠起来的内容：
+
+```tsx
+<div data-slot="row">
+  <div data-slot="stack">
+    <span>24</span>
+    <span data-slot="hint">项目</span>
+  </div>
+  <Separator orientation="vertical" />
+  <div data-slot="stack">
+    <span>1,280</span>
+    <span data-slot="hint">关注者</span>
+  </div>
+</div>
+```
+
+## 装饰性分隔
+
+线条不提供额外信息时加 `decorative`。下面「或」这个字已经说明两种登录方式是分开的，屏幕阅读器会跳过两条线：
+
+```tsx
+<div data-slot="stack">
+  <button type="button">用通行密钥登录</button>
+  <div data-slot="row">
+    <Separator decorative />
+    <span>或</span>
+    <Separator decorative />
+  </div>
+  <button type="button">发送登录链接到邮箱</button>
+</div>
+```
+
+装饰性分隔线得到 `role="none"`，不再输出 `aria-orientation`，但保留 `data-orientation` 供样式使用。只有在周围内容已经表达了分隔含义时才用它，例如菜单里两组动作之间的线不要设为装饰性。
+
+## 自定义元素
+
+给 `render` 传别的元素即可换标签，例如语义上的 `hr`，行为与状态属性保持不变：
+
+```tsx
+<Separator render={<hr />} />
+```
+
+需要读取状态时用渲染函数，参见[部件与组合](/docs/concepts/parts-and-composition)。
+
+## 样式与状态
+
+部件无样式：横向给高度，竖向给宽度，用 `data-orientation` 区分两者。`data-slot` 是 `separator`，唯一的状态属性是 `data-orientation`（`horizontal`、`vertical`）。示例里的 `row` 与 `stack` 是你自己的布局容器：
+
+```css
+[data-slot="row"] {
+  display: flex;
+  align-items: center;
+}
+[data-slot="stack"] {
+  display: grid;
+}
+[data-slot="separator"] {
+  background: var(--color-border);
+  border: 0;
+}
+[data-slot="separator"][data-orientation="horizontal"] {
+  block-size: 1px;
+  inline-size: 100%;
+  margin-block: 12px;
+}
+[data-slot="separator"][data-orientation="vertical"] {
+  inline-size: 1px;
+  align-self: stretch;
+  margin-inline: 12px;
+}
+```
+
+竖线靠 `align-self: stretch` 取行高，所以父级要是 flex 或 grid 行。用逻辑属性写尺寸与间距，线条才能跟随书写方向。详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+| 属性 | 类型 | 说明 |
+| --- | --- | --- |
+| `orientation` | `"horizontal" \| "vertical"` | 线条方向，默认横向；竖向用于划分一行里的各项。 |
+| `decorative` | `boolean` | 用 `role="none"` 对辅助技术隐藏，仅视觉作用。 |
+| `render` | `ReactElement \| (props, state) => ReactElement` | 换成 `hr` 等其他元素。 |
+| `debug` | `boolean` | 开发构建里把每次状态变化与原因打到控制台。 |
+
+渲染函数与状态类名收到 `orientation`（`"horizontal" | "vertical"`）。
+
+## 键盘与无障碍
+
+分隔线遵循 WAI-ARIA 的 separator 角色，是纯展示部件，没有自己的键盘交互：
+
+- 非装饰性分隔线以 `role="separator"` 与 `aria-orientation` 播报，屏幕阅读器把两侧内容读成独立的部分。
+- 装饰性分隔线是 `role="none"`，屏幕阅读器直接跳过。
+- 两种情况都不接受焦点，`Tab` 会越过它落到下一个可聚焦元素。
+
+## 相关组件
+
+- [菜单](/docs/components/menu)：菜单项分组之间的分隔线不要设为装饰性。
+- [手风琴](/docs/components/accordion)：折叠面板之间的视觉分隔。
+- [滚动区域](/docs/components/scroll-area)：长列表里配合分隔线组织内容。
+- [部件与组合](/docs/concepts/parts-and-composition)：换元素与读取状态的约定。

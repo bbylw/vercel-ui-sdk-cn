@@ -1,0 +1,139 @@
+---
+title: "列表框"
+description: "Listbox 从始终可见的列表里选一个或多个选项，像多行可见的原生 select，带键盘导航、键入定位与范围选择。"
+sidebar:
+  order: 31
+---
+
+`Listbox`（列表框）让人从始终可见的列表里选一个或多个选项。它像一个显示多行的原生 select，带键盘导航、键入定位（typeahead）与可选的范围选择。选项应当一直留在视野里时用它；需要弹出触发器时用[选择器](/docs/components/select)，需要键入过滤时用[组合框](/docs/components/combobox)。
+
+## 组合
+
+```text
+Listbox
+├── ListboxItem
+│   └── ListboxItemIndicator
+└── ListboxItem
+    └── ListboxItemIndicator
+```
+
+给列表一个无障碍名称，给每个选项一个唯一 `value`。`ListboxItemIndicator` 在该选项被选中时显示其内容。也可用[字段](/docs/components/field)标签或 `aria-labelledby` 命名。按钮、搜索框与空消息应放在列表之外：列表内容只应是选项、分组与分隔。
+
+## 用法
+
+```tsx
+import { Listbox, ListboxItem, ListboxItemIndicator } from "@ui-sdk/react/listbox";
+
+function Example() {
+  return (
+    <Listbox aria-label="配料" defaultValue="basil">
+      <ListboxItem value="basil">
+        罗勒
+        <ListboxItemIndicator>✓</ListboxItemIndicator>
+      </ListboxItem>
+      <ListboxItem value="olive">
+        橄榄
+        <ListboxItemIndicator>✓</ListboxItemIndicator>
+      </ListboxItem>
+    </Listbox>
+  );
+}
+```
+
+## 多选与范围选择
+
+加 `multiple` 选多个选项，值变成数组（单选时为单个值或 `null`）。默认情况下方向键只移动焦点而不改变多选选择：
+
+| 操作 | 结果 |
+| --- | --- |
+| 点击选项或 `Space` | 切换该选项 |
+| `Shift` + 点击 / 方向键 / `Space` | 从上次选中项起选一个范围 |
+| `Ctrl/Cmd` + `Shift` + `Home` / `End` | 把范围扩展到首项或末项 |
+| `Ctrl/Cmd` + `A` | 选中所有启用项，再按一次清空 |
+
+改变 `Shift` 范围会保留该范围开始前已选的选项，范围会跳过禁用项。
+
+```tsx
+<Listbox multiple defaultValue={["cheese", "onion"]} aria-label="配料">
+  {toppings.map((t) => (
+    <ListboxItem key={t.value} value={t.value}>
+      {t.label}
+      <ListboxItemIndicator>✓</ListboxItemIndicator>
+    </ListboxItem>
+  ))}
+</Listbox>
+```
+
+## 激活方式
+
+`activation` 决定选择是否跟随焦点。单选列表默认 `"automatic"`：方向键、`Home`、`End` 与键入移动到哪项就选中哪项。多选列表设 `activation="automatic"` 后像文件列表：点击或方向键替换选择，`Ctrl/Cmd` 追加，`Ctrl/Cmd` + 方向键只移动焦点不选择（触摸与屏幕阅读器按下则切换，因为没有修饰键）。设 `activation="manual"` 可只浏览不选择，由 `Space`、`Enter` 或点击来选中焦点项：
+
+```tsx
+<Listbox activation="manual" aria-label="框架">
+  {/* 选项 */}
+</Listbox>
+```
+
+## 可取消选择与横向排列
+
+单选列表加 `deselectable`，再次点击已选项即清空选择（否则保持不变）。`orientation="horizontal"` 改用 `Left` / `Right` 移动（RTL 文本反向），`loop` 控制方向键是否首尾循环（`Shift` + 方向键从不循环），`keepInView` 让列表把按键移动到的选项滚动进视野：
+
+```tsx
+<Listbox deselectable defaultValue="astro" aria-label="框架">
+  {/* 选项 */}
+</Listbox>
+```
+
+## 选项即数据与控制器
+
+把选项作为 `items` 传入即由组件渲染，键入还能找到虚拟化列表尚未渲染的项；分组用 `ListboxGroup`、`ListboxGroupLabel`，分隔用 `ListboxSeparator`（方向键跨组移动并跳过组标签）。对象值用 `itemToValue`、`isItemEqualToValue` 处理标识与比较。`createListboxController()` 创建的控制器提供 `getValue / setValue / clear / selectAll / focus`，写方法像用户操作那样跑 `onValueChange`。参见[控制器](/docs/concepts/controllers)。
+
+## 样式与状态
+
+用 `data-selected` 表示选中、`data-highlighted` 表示焦点；当选择不跟随焦点时，两者可能落在不同选项上。列表带 `data-orientation`（`vertical` / `horizontal`）、`data-disabled`、`data-readonly`、`data-required`；选项带 `data-selected`、`data-highlighted`、`data-disabled`（禁用项仍可聚焦）。指示器继承 `data-selected`，`keepMounted` 让它在未选中时也留在页面里以便两态做动画：
+
+```css
+[data-slot="listbox-item"][data-highlighted] {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -2px;
+}
+[data-slot="listbox-item"][data-selected] {
+  background: var(--color-accent);
+  color: var(--color-brand);
+}
+[data-slot="listbox"][data-orientation="horizontal"] {
+  display: flex;
+  gap: 0.25rem;
+}
+```
+
+## API
+
+根 `Listbox` 的常用属性：
+
+- `value` / `defaultValue`（`T | T[] | null`）：受控值 / 初始值，`multiple` 时为数组，`null` 表示未选。
+- `onValueChange`（`(value, details) => void`）：值想变更时调用，`details.reason` 说明来源，`details.cancel()` 拦截。
+- `multiple`（`boolean`）：允许多选，`Shift` 选范围，`Ctrl/Cmd` + `A` 全选。
+- `activation`（`"automatic" | "manual"`）：选择是否跟随焦点。
+- `deselectable`（`boolean`）：单选时再次点击已选项是否清空。
+- `orientation`（`"horizontal" | "vertical"`）、`loop`（`boolean`）、`keepInView`（`boolean`）。
+- `items`（`ListData<T>`）、`itemToValue`、`isItemEqualToValue`、`onHighlight`。
+- `name` / `required` / `disabled` / `readOnly`：表单提交与可用性。
+- `controller`（`object`）：用 `createListboxController()` 创建。
+
+`ListboxItem` 接受 `value`、`label`（键入定位匹配的文本）、`disabled`、`index`；`ListboxItemIndicator` 接受 `keepMounted`。
+
+## 键盘与无障碍
+
+遵循 WAI-ARIA listbox 模式，多选支持其两种键盘模型。选项获得真实焦点，整个列表是一个 roving tab stop：`Tab` 回到上次聚焦的选项，否则落到首个选中或启用项；因为选项获得真实 DOM 焦点，`focus-visible` 直接可用。根会把焦点转进选项（包括点击字段标签或列表内边距时），`Escape` 仍留给外层对话框。
+
+- 单选：方向键移动焦点且选择跟随，`Home` / `End` 跳到首尾，键入定位并选中以该字符开头的项；`Escape` 不改变选择。
+- 多选（默认）：点击与 `Space` 切换，方向键只移动焦点，`Shift` 选范围，`Ctrl/Cmd` + `A` 全选再清空，键入只移动焦点。
+- 每个选项都向屏幕阅读器表明是否选中；禁用项不可选，方向键、键入与范围都跳过它。
+
+## 相关组件
+
+- [选择器](/docs/components/select)：带弹出触发器的选择。
+- [组合框](/docs/components/combobox)：键入过滤并选值。
+- [单选组](/docs/components/radio)：一组里只选一个的单选按钮。
+- [字段](/docs/components/field)：为列表命名并关联描述与校验。

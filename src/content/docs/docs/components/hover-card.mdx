@@ -1,0 +1,139 @@
+---
+title: "悬停卡片"
+description: "HoverCard 在指针悬停或键盘聚焦停留时预览链接目标，链接保持正常导航，支持定位、延迟与多链接共享。"
+sidebar:
+  order: 54
+---
+
+`HoverCard`（悬停卡片）给在链接上停留的人预览链接的去向，例如个人主页卡片；链接本身仍照常导航。按钮上的简短提示用[文字提示](/docs/components/tooltip)，点击打开的交互内容用[弹出框](/docs/components/popover)。
+
+## 组合
+
+```text
+HoverCard
+├── HoverCardTrigger
+└── HoverCardContent
+    └── HoverCardArrow
+```
+
+触发器是链接（渲染 `<a>`，要给 `href`），按下即跳转；内容是预览，箭头可选。卡片只服务愿意停留的人：触摸与屏幕阅读器用户可能永远不会打开它，卡片里的一切都应在链接目标页面上可达。
+
+## 用法
+
+```tsx
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@ui-sdk/react/hover-card";
+
+function Example() {
+  return (
+    <HoverCard>
+      <HoverCardTrigger href="/people/hollis">@hollis</HoverCardTrigger>
+      <HoverCardContent>
+        <p>Hollis Grant</p>
+        <p>支付团队的设计工程师，写表单与动效。</p>
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+```
+
+## 定位与箭头
+
+`side` 选择打开方向（默认 `bottom`），`align` 沿链接对齐 `start` / `center` / `end`；空间不足时翻到另一侧并沿链接平移保持在屏内。`sideOffset` 是与链接的间距（默认 4px），`alignOffset` 沿链接偏移，`collisionPadding` 是与窗口边缘保留的距离，`anchor` 可改为相对其他元素、选择器或 `{ x, y }` 点定位。
+
+```tsx
+<HoverCardContent side="right" align="start" sideOffset={8} collisionPadding={16}>
+  <HoverCardArrow />
+  {/* 预览内容 */}
+</HoverCardContent>
+```
+
+`HoverCardArrow` 跟随卡片实际落在的一侧（含翻转后），带相同的 `data-side`，指向链接中点并与圆角保持 `arrowPadding` 的距离；够不到中点时带 `data-arrow-clamped`。
+
+## 延迟
+
+`delay` 是指针停留或键盘聚焦多久后打开，默认 600 毫秒；`closeDelay` 是指针离开链接与卡片后多久关闭，默认 300 毫秒。指针穿过链接与卡片之间的空隙不会关闭。`disabled` 让卡片不打开，触发器保持普通链接。
+
+```tsx
+<HoverCard delay={300} closeDelay={150} disabled={!previews}>
+```
+
+## 多链接共享一张卡片
+
+信息流或列表不必每个链接渲染一张卡片：把链接和卡片连到同一个 `createHoverCardController<Payload>()`，每个链接传自己的 `payload`，内容从 `state.payload` 读取。只有打开卡片的那个链接带 `data-open`；`controller.open({ payload })` 也能用代码打开。
+
+```tsx
+const profile = createHoverCardController<Person>();
+
+{people.map((person) => (
+  <HoverCardTrigger
+    key={person.handle}
+    controller={profile}
+    payload={person}
+    href={person.url}
+  >
+    {person.name}
+  </HoverCardTrigger>
+))}
+
+<HoverCard controller={profile}>
+  <HoverCardContent<Person>>
+    {(state) => <p>{state.payload?.bio}</p>}
+  </HoverCardContent>
+</HoverCard>
+```
+
+卡片里可以有自己的链接：从链接 Tab 会进入打开的卡片，越过卡片末尾则继续到链接之后的页面，焦点离开卡片即关闭。
+
+## 样式与状态
+
+各部件的 `data-slot` 为 `hover-card-trigger`、`hover-card-content`、`hover-card-arrow`，开合带 `data-open` / `data-closed`；内容与箭头带 `data-side` 标记实际落点，内容另有 `data-starting-style` / `data-ending-style` 供入场退场动画。
+
+内容上的 CSS 变量：`--anchor-width` / `--anchor-height`（锚点尺寸）、`--available-width` / `--available-height`（到视口边缘的可用空间）、`--transform-origin`（缩放原点）、`--arrow-offset`（锚点中心在弹出层边上的位置，可用来定位 `::before` 箭头）。
+
+```css
+[data-slot="hover-card-content"] {
+  transform-origin: var(--transform-origin);
+  transition: opacity 150ms, scale 150ms;
+}
+[data-slot="hover-card-content"]:is([data-starting-style], [data-ending-style]) {
+  opacity: 0;
+  scale: 0.96;
+}
+```
+
+箭头伸出卡片外，保持外层 overflow 可见；正文要滚动就放在内部元素上。退场播完才卸载，`keepMounted` 可保留隐藏内容。详见[弹出层](/docs/concepts/popups)。
+
+## API
+
+| Prop | 类型 | 说明 |
+| --- | --- | --- |
+| `open` / `defaultOpen` | `boolean` | 受控 / 非受控的开合状态。 |
+| `onOpenChange` | `(open, details) => void` | 开合变更；`details.reason` 如 `trigger-hover`、`trigger-focus`、`escape-key`，可 `cancel()`。 |
+| `onOpenChangeComplete` | `(open: boolean) => void` | 动画结束后报告开合完成。 |
+| `delay` | `number` | 悬停或聚焦多久后打开，默认 600ms。 |
+| `closeDelay` | `number` | 指针离开后多久关闭，默认 300ms。 |
+| `disabled` | `boolean` | 不打开卡片，链接照常工作。 |
+| `controller` | `PopupController` | 用 `createHoverCardController()` 创建，连接外部触发器。 |
+
+`HoverCardContent` 另有 `side`、`align`、`sideOffset`、`alignOffset`、`collisionPadding`、`arrowPadding`、`anchor`、`container`、`keepMounted`；`HoverCardTrigger` 有 `payload` 与 `controller`。
+
+## 键盘与无障碍
+
+| 按键 | 行为 |
+| --- | --- |
+| `Tab` | 聚焦链接后等待 `delay` 打开；卡片打开时 Tab 进入卡片 |
+| `Enter` | 跟随链接跳转 |
+| `Escape` | 关闭卡片，焦点留在链接上 |
+
+键盘聚焦与指针共用同一个 `delay`，快速 Tab 过一串链接不会每站都闪一张卡片。焦点离开卡片即关闭；`Shift+Tab` 从卡片回到链接。触摸屏没有悬停，点按直接跳转、不打开卡片。触发器保持普通链接语义，卡片是旁边的预览而非对话框。
+
+## 相关组件
+
+- [文字提示](/docs/components/tooltip)：按钮等控件上的简短提示。
+- [弹出框](/docs/components/popover)：点击打开、可交互的内容。
+- [弹出层](/docs/concepts/popups)：顶层渲染与锚点变量的共享模型。
+- [控制器](/docs/concepts/controllers)：多触发器共享一张卡片的连接方式。

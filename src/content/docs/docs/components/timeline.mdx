@@ -1,0 +1,292 @@
+---
+title: "时间线"
+description: "Timeline 按时间顺序展示事件，支持横向路线图、流程状态、事件内可展开详情与滚动加载的信息流。"
+sidebar:
+  order: 95
+---
+
+`Timeline`（时间线）展示已经发生或将要发生的一串事情：项目动态、订单状态历史、版本里程碑。对屏幕阅读器它是一个列表，对键盘只有一个 Tab 停靠点，方向键在事件之间移动。布局与视觉全部由你写，标记与连接线只是装饰。
+
+## 组合
+
+```text
+Timeline
+├── TimelineItem
+│   ├── TimelineMarker
+│   ├── TimelineConnector
+│   ├── TimelineTitle
+│   ├── TimelineTime
+│   └── TimelineDescription
+└── TimelineItem
+```
+
+事件里的每个部件都可选。`TimelineMarker` 是线上的圆点或图标，`TimelineConnector` 是通往下一个事件的线段，两者都对屏幕阅读器隐藏，只负责外观。
+
+## 用法
+
+```tsx
+import {
+  Timeline,
+  TimelineConnector,
+  TimelineDescription,
+  TimelineItem,
+  TimelineMarker,
+  TimelineTime,
+  TimelineTitle,
+} from "@ui-sdk/react/timeline";
+
+const events = [
+  { title: "已发布到生产环境", dateTime: "2026-11-10T14:32", time: "今天 14:32", description: "2.4.1 版本已在所有区域上线。" },
+  { title: "检查通过", dateTime: "2026-11-10T14:20", time: "今天 14:20", description: "312 项测试与包体积预算全部通过。" },
+];
+
+function Example() {
+  return (
+    <Timeline aria-label="项目动态">
+      {events.map((event) => (
+        <TimelineItem key={event.title}>
+          <TimelineMarker />
+          <TimelineConnector />
+          <TimelineTitle>{event.title}</TimelineTitle>
+          <TimelineTime dateTime={event.dateTime}>{event.time}</TimelineTime>
+          <TimelineDescription>{event.description}</TimelineDescription>
+        </TimelineItem>
+      ))}
+    </Timeline>
+  );
+}
+```
+
+`Timeline` 渲染带 `list` 角色的 `div`，每个事件是带 `listitem` 角色的 `div`。给 `TimelineTime` 传 `dateTime`，机器可读的时间与友好的文本就能并存。焦点落在事件上时，屏幕阅读器先读标题作为名称，再读时间与描述；事件里的链接与按钮仍在 Tab 序列中。
+
+## 横向与循环
+
+`orientation="horizontal"` 适合路线图这类横向排列，此时左右方向键移动事件，并在从右到左的文本里自动交换。`loop={false}` 让方向键停在两端，默认是首尾循环。
+
+```tsx
+const milestones = [
+  { title: "启动", dateTime: "2026-01", time: "1 月" },
+  { title: "设计评审", dateTime: "2026-03", time: "3 月" },
+  { title: "公测", dateTime: "2026-06", time: "6 月" },
+  { title: "正式发布", dateTime: "2026-09", time: "9 月" },
+];
+
+<Timeline orientation="horizontal" loop={false} aria-label="产品路线图">
+  {milestones.map((milestone) => (
+    <TimelineItem key={milestone.title}>
+      <TimelineMarker />
+      <TimelineConnector />
+      <TimelineTitle>{milestone.title}</TimelineTitle>
+      <TimelineTime dateTime={milestone.dateTime}>{milestone.time}</TimelineTime>
+    </TimelineItem>
+  ))}
+</Timeline>;
+```
+
+## 流程状态
+
+给每个事件设 `status` 为 `"complete"`、`"current"` 或 `"upcoming"`，用于订单进度这类流程。当前事件带 `aria-current="step"`，并优先拿到 Tab 停靠点；事件的每个部件都带 `data-complete`、`data-current` 或 `data-upcoming`。
+
+```tsx
+import { createTimelineController, type TimelineStatus } from "@ui-sdk/react/timeline";
+
+const steps: { value: string; title: string; status: TimelineStatus }[] = [
+  { value: "placed", title: "已下单", status: "complete" },
+  { value: "packed", title: "已打包", status: "complete" },
+  { value: "shipped", title: "运输中", status: "current" },
+  { value: "delivered", title: "已送达", status: "upcoming" },
+];
+
+const [controller] = React.useState(() => createTimelineController());
+
+<div data-slot="stack">
+  <button type="button" onClick={() => controller.focus("shipped")}>跳到当前步骤</button>
+  <Timeline aria-label="订单状态" controller={controller}>
+    {steps.map((step) => (
+      <TimelineItem key={step.value} value={step.value} status={step.status}>
+        <TimelineMarker />
+        <TimelineConnector />
+        <TimelineTitle>{step.title}</TimelineTitle>
+      </TimelineItem>
+    ))}
+  </Timeline>
+</div>;
+```
+
+`createTimelineController()` 的 `focus(value)` 可以从任何地方把焦点移到某个事件，不传 `value` 则移到持有 Tab 停靠点的事件。`TimelineItem` 的 `value` 省略时会自动生成。
+
+<Aside type="note" title="状态不要只靠颜色">
+标记只把状态传达给看得见的人。状态重要时，请同时写进标题或描述，例如「运输中，当前步骤」。
+</Aside>
+
+## 事件内的详情与控件
+
+事件里可以放[折叠面板](/docs/components/collapsible)承载可展开的详情。它的触发器是事件内的按钮，`Tab` 从事件走到它，方向键仍然只作用于事件本身：
+
+```tsx
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "@ui-sdk/react/collapsible";
+
+<TimelineItem>
+  <TimelineMarker />
+  <TimelineConnector />
+  <TimelineTitle>2.4 版本</TimelineTitle>
+  <TimelineTime dateTime="2026-10-28">10 月 28 日</TimelineTime>
+  <TimelineDescription>更快的搜索与可续传的上传。</TimelineDescription>
+  <Collapsible>
+    <CollapsibleTrigger>更新内容</CollapsibleTrigger>
+    <CollapsiblePanel>
+      <ul>
+        <li>搜索现在匹配文件内容，而不只是文件名。</li>
+        <li>连接中断后上传可以续传。</li>
+      </ul>
+    </CollapsiblePanel>
+  </Collapsible>
+</TimelineItem>;
+```
+
+任何部件都能用 `render` 换元素，例如把标题渲染成 `h3`，让人可以按标题在事件之间跳转：`<TimelineTitle render={<h3 />}>已发布到生产环境</TimelineTitle>`。
+
+## 信息流
+
+设 `feed` 用于随滚动加载更多内容的长时间线。它遵循 WAI-ARIA feed 模式：根变成 `feed`，每个事件变成带位置与总数的 `article`，`PageDown` 与 `PageUp` 可以从事件内部任何位置跳到下一篇或上一篇。加载或更换内容时设 `busy`，它会置 `aria-busy`，让屏幕阅读器等新内容就绪再继续读。
+
+```tsx
+// updates 是 { id, author, date, time, text } 数组
+const [count, setCount] = React.useState(3);
+const [busy, setBusy] = React.useState(false);
+
+function loadMore() {
+  setBusy(true);
+  setTimeout(() => {
+    setCount((current) => current + 3);
+    setBusy(false);
+  }, 600);
+}
+
+<Timeline feed busy={busy} aria-label="团队动态">
+  {updates.slice(0, count).map((update) => (
+    <TimelineItem key={update.id}>
+      <TimelineMarker />
+      <TimelineConnector />
+      <TimelineTitle>{update.author}</TimelineTitle>
+      <TimelineTime dateTime={update.date}>{update.time}</TimelineTime>
+      <TimelineDescription>{update.text}</TimelineDescription>
+    </TimelineItem>
+  ))}
+</Timeline>;
+```
+
+多数时间线用列表就好。只有会不断变长、希望屏幕阅读器阅读模式从一篇文章自然流到下一篇时才用 feed。
+
+## 样式与状态
+
+部件无样式。把事件排成网格，标记独占一列，连接线沿这一列定位。每个部件都带 `data-orientation`（`horizontal`、`vertical`）。示例里的 `data-slot="stack"` 只是布局容器，用 flex 或 grid 自己定义。
+
+- 根 `timeline`：`data-orientation`、`data-busy`（feed 加载中）。
+- `timeline-item`：`data-complete` / `data-current` / `data-upcoming`、`data-orientation`、`data-first`、`data-last`。
+- `timeline-marker`、`timeline-connector`、`timeline-time`、`timeline-title`、`timeline-description`：状态属性与 `data-orientation`。
+
+`data-first` 与 `data-last` 在事件进入页面后写入；服务端标记在 hydration 前可以用 `:last-child` 达到同样效果。根写出 `--timeline-count`（页面上的事件数），每个事件写出 `--timeline-index`（从 0 起的位置，随事件移动而更新）。
+
+```css
+[data-slot="timeline"] {
+  display: grid;
+  gap: 20px;
+}
+[data-slot="timeline-item"] {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  column-gap: 12px;
+}
+[data-slot="timeline-marker"] {
+  grid-row: 1 / span 3;
+  justify-self: center;
+  inline-size: 10px;
+  block-size: 10px;
+  margin-block-start: 5px;
+  border-radius: 50%;
+  background: var(--color-border-strong);
+}
+[data-slot="timeline-connector"] {
+  position: absolute;
+  inset-block: 18px -20px;
+  inset-inline-start: 9px;
+  inline-size: 2px;
+  background: var(--color-border);
+}
+[data-slot="timeline-item"][data-last] > [data-slot="timeline-connector"] {
+  display: none;
+}
+[data-slot="timeline-item"][data-complete] [data-slot="timeline-marker"] {
+  background: var(--color-success);
+}
+[data-slot="timeline-item"][data-current] [data-slot="timeline-marker"] {
+  background: var(--color-brand);
+  box-shadow: 0 0 0 4px var(--color-brand-wash);
+}
+[data-slot="timeline-item"][data-upcoming] [data-slot="timeline-marker"] {
+  background: var(--color-background);
+  box-shadow: inset 0 0 0 2px var(--color-border-strong);
+}
+```
+
+横向排列用事件数决定列数，入场动画用序号错开：
+
+```css
+[data-slot="timeline"][data-orientation="horizontal"] {
+  grid-template-columns: repeat(var(--timeline-count), minmax(0, 1fr));
+}
+[data-slot="timeline-item"] {
+  animation: timeline-in 240ms ease-out backwards;
+  animation-delay: calc(var(--timeline-index) * 40ms);
+}
+@keyframes timeline-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+```
+
+详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+`Timeline`：
+
+| 属性 | 类型 | 说明 |
+| --- | --- | --- |
+| `orientation` | `"vertical" \| "horizontal"` | 事件排列方向，决定用哪组方向键。 |
+| `loop` | `boolean` | 方向键是否首尾循环。 |
+| `feed` | `boolean` | 作为信息流而非列表，事件变成带位置的 article。 |
+| `busy` | `boolean` | feed 正在加载或更换事件，置 `aria-busy`；只有 feed 读取它。 |
+| `controller` | `{ focus: (value?: string) => void }` | `createTimelineController()` 创建的控制器。 |
+| `debug` | `boolean` | 开发构建里把每次状态变化与原因打到控制台。 |
+
+`TimelineItem`：`value`（`string`，供控制器 `focus()` 使用，省略时自动生成）、`status`（`"complete" | "current" | "upcoming"`）。`TimelineMarker`、`TimelineConnector`、`TimelineTime`、`TimelineTitle`、`TimelineDescription` 没有自己的属性，但都接受 `render` 与读取状态的函数式 `className`、`style`、`children`。
+
+根的状态是 `orientation`、`feed`、`busy`；事件及其内部部件的状态是 `status`（无状态时为 `undefined`）与 `orientation`。
+
+## 键盘与无障碍
+
+时间线是带 `list` 角色的列表，用 `aria-label` 命名；每个事件通过 `aria-labelledby` 以标题命名，通过 `aria-describedby` 由时间与描述补充。设 `feed` 后变成 `feed` 与 `article`，每篇带 `aria-posinset` 与 `aria-setsize`，加载时带 `aria-busy`。当前事件带 `aria-current="step"`。
+
+事件采用 roving focus，只有一个 Tab 停靠点：`Tab` 落在当前事件（没有则第一个），离开后再回来会回到上次聚焦的事件。服务端标记在 hydration 前把停靠点放在第一个事件。
+
+| 按键 | 动作 |
+| --- | --- |
+| `ArrowDown` / `ArrowUp` | 竖向时间线里在事件之间移动焦点。 |
+| `ArrowRight` / `ArrowLeft` | 横向时间线里在事件之间移动焦点。 |
+| `Home` / `End` | 聚焦第一个或最后一个事件。 |
+| `PageDown` / `PageUp` | feed 里从内部任何位置移到下一篇或上一篇。 |
+| `Tab` | 从事件走到它内部的链接与按钮。 |
+
+方向键只在事件本身生效，事件内的控件保留自己的方向键行为。从右到左的文本里左右键交换。
+
+## 相关组件
+
+- [折叠面板](/docs/components/collapsible)：事件里可展开的详情。
+- [头像](/docs/components/avatar)：动态流里每条事件的作者头像。
+- [瀑布流](/docs/components/waterfall)：按耗时展开的调用链，同样是可键盘遍历的行。
+- [部件与组合](/docs/concepts/parts-and-composition)：把标题渲染成 heading 等自定义元素。

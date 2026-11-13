@@ -1,0 +1,72 @@
+---
+title: "第一个组件"
+description: "用 ui-sdk 组合一个开关：导入入口、嵌套部件、用状态属性写样式，几分钟跑通完整闭环。"
+sidebar:
+  order: 2
+---
+
+这一页带你组合一个真实的开关（Switch）。它自带键盘操作、焦点管理与 ARIA 语义，但一个像素的样式都不带——外观由你写。
+
+## 组合组件
+
+每个组件都是「一个根 + 若干部件」。开关的根是 `Switch`，里面放 `SwitchThumb`：
+
+```tsx title="NotifySwitch.tsx"
+import { Switch, SwitchThumb } from "@ui-sdk/react/switch";
+
+export function NotifySwitch() {
+  return (
+    <Switch aria-label="启用通知" defaultChecked>
+      <SwitchThumb />
+    </Switch>
+  );
+}
+```
+
+`defaultChecked` 让它以「开」起步且不受控；想自己管理状态就传 `checked` 加 `onCheckedChange`。
+
+## 看它运行
+
+下面是一个受控的开关，切换时状态实时更新：
+
+<DocDemo name="switch" />
+
+## 用状态属性写样式
+
+组件把状态暴露在 `data-*` 属性上，而不是类名。开关打开时根上有 `data-checked`，于是：
+
+```css title="switch.css"
+[data-slot="switch"] {
+  width: 2.75rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: var(--color-border-strong);
+  transition: background 0.15s ease;
+}
+[data-slot="switch"][data-checked] {
+  background: var(--color-brand);
+}
+[data-slot="switch-thumb"] {
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 999px;
+  background: white;
+  translate: 0.1875rem 0;
+  transition: translate 0.15s ease;
+}
+[data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
+  translate: 1.375rem 0;
+}
+```
+
+没有内联样式、没有生成的 id、没有组件强加的颜色。换一套令牌，整个开关就换一副样子。
+
+<Aside type="tip" title="为什么是 data 属性">
+状态属性让样式、测试和智能体读到同一份事实。智能体快照里的 `checked` 与你 CSS 里的 `data-checked` 来自同一个状态源。参见[状态与事件](/docs/concepts/state-and-events)。
+</Aside>
+
+## 接下来
+
+- [部件与组合](/docs/concepts/parts-and-composition)：根与部件的通用形状，以及 `render` 换元素。
+- [样式与动画](/docs/concepts/styling-and-animation)：入场/退场动画与 `data-starting-style`。
+- [组件总览](/docs/components)：55 个组件按分类索引。

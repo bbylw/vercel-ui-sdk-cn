@@ -1,0 +1,204 @@
+---
+title: "进度条"
+description: "Progress 显示任务进度，进度未知时进入不确定态，支持范围、格式化、完成态与无障碍值标签。"
+sidebar:
+  order: 94
+---
+
+`Progress`（进度条）显示一个任务已经走到哪里，例如导出视频、上传照片、复制文件；不知道完成了多少时进入不确定态。存储用量、配额这类不会「完成」的读数请用[计量条](/docs/components/meter)。
+
+## 组合
+
+```text
+Progress
+├── ProgressLabel
+├── ProgressValue
+└── ProgressTrack
+    └── ProgressIndicator
+```
+
+- `Progress` 持有值与范围。
+- `ProgressLabel` 提供可见名称，也可以改用根上的 `aria-label`。
+- `ProgressValue` 显示格式化后的值。
+- `ProgressTrack` 决定条的尺寸，`ProgressIndicator` 负责填充。
+
+值已经在根的可访问描述里，可见的 `ProgressValue` 对屏幕阅读器隐藏，避免读两遍。
+
+## 用法
+
+```tsx
+import {
+  Progress,
+  ProgressIndicator,
+  ProgressLabel,
+  ProgressTrack,
+  ProgressValue,
+} from "@ui-sdk/react/progress";
+
+function Example() {
+  return (
+    <Progress value={60}>
+      <ProgressLabel>正在导出视频</ProgressLabel>
+      <ProgressValue />
+      <ProgressTrack>
+        <ProgressIndicator />
+      </ProgressTrack>
+    </Progress>
+  );
+}
+```
+
+任务推进时传入最新的 `value`。Progress 只展示你的状态，没有 `onValueChange` 回调。
+
+## 不确定态
+
+不传 `value`（或传 `null`）表示任务在进行但进度未知：每个部件都带 `data-indeterminate`，根不输出 `aria-valuenow`，指示条也没有内联宽度，动画完全由你的 CSS 决定。
+
+```tsx
+<Progress value={null}>
+  <ProgressLabel>正在连接服务器</ProgressLabel>
+  <ProgressTrack>
+    <ProgressIndicator />
+  </ProgressTrack>
+</Progress>
+```
+
+下面的样式让一小段高光扫过轨道，并在用户要求减少动效时改成静止的满宽填充：
+
+```css
+[data-slot="progress-indicator"][data-indeterminate] {
+  inline-size: 40%;
+  animation: progress-sweep 1.2s ease-in-out infinite;
+}
+@keyframes progress-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="progress-indicator"][data-indeterminate] {
+    inline-size: 100%;
+    animation: none;
+    opacity: 0.5;
+  }
+}
+```
+
+## 范围、格式化与地区
+
+`min` 与 `max` 默认 0 和 100。越界值在填充、百分比与 `aria-valuenow` 上被夹取，状态里的 `value` 与非百分比格式保留原值。范围从 1 开始时，`value={3}`、`max={5}` 正好填充一半：
+
+```tsx
+<Progress value={3} min={1} max={5}>
+  <ProgressLabel>账号设置，第 3 步，共 5 步</ProgressLabel>
+  <ProgressValue />
+  <ProgressTrack>
+    <ProgressIndicator />
+  </ProgressTrack>
+</Progress>
+```
+
+`format` 接受 `Intl.NumberFormat` 选项或返回文本的函数，`locale` 决定数字与分隔符：
+
+```tsx
+<Progress
+  value={45}
+  max={60}
+  locale="zh-CN"
+  format={(minutes) => `剩余 ${60 - minutes} 分钟`}
+>
+  <ProgressLabel>备份</ProgressLabel>
+  <ProgressValue />
+  <ProgressTrack>
+    <ProgressIndicator />
+  </ProgressTrack>
+</Progress>
+```
+
+百分比格式报告值在 `min` 与 `max` 之间的位置，其他格式显示值本身。不传 `locale` 时挂载后跟随页面 `lang`，没有则退回浏览器语言，服务端与客户端首帧用英文。给周围内容设 `dir="rtl"` 可让轨道从右往左填充。
+
+## 值标签
+
+`getValueLabel` 给屏幕阅读器比可见数字更多的上下文，`details` 含 `formatted`、`percent`、`min`、`max`。任务可能不确定时要处理 `null`：此时 `percent` 也是 `null`，`formatted` 为空字符串。
+
+```tsx
+<Progress
+  value={3}
+  max={12}
+  getValueLabel={(value, details) =>
+    value === null
+      ? "正在复制文件，进度未知"
+      : `${details.max} 个文件中已复制 ${value} 个，${details.formatted}`
+  }
+>
+  <ProgressLabel>正在复制文件</ProgressLabel>
+  <ProgressValue>3 / 12</ProgressValue>
+  <ProgressTrack>
+    <ProgressIndicator />
+  </ProgressTrack>
+</Progress>
+```
+
+## 样式与状态
+
+给轨道高度、背景与宽度，指示条以内联百分比设置自身宽度。五个部件的 `data-slot` 是 `progress`、`progress-label`、`progress-value`、`progress-track`、`progress-indicator`，并且都带同一组状态属性：
+
+- `data-indeterminate`：值为 `null`，任务在进行但进度未知。
+- `data-progressing`：值小于 `max`。
+- `data-complete`：值到达 `max`。
+
+根还暴露 `--progress-value`：值在 `min` 与 `max` 之间的位置，百分比形式（例如 `40%`），不确定态下不设置。
+
+```css
+[data-slot="progress-track"] {
+  block-size: 8px;
+  border-radius: 999px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+[data-slot="progress-indicator"] {
+  block-size: 100%;
+  background: var(--color-brand);
+  transition: width 200ms ease;
+}
+[data-slot="progress-indicator"][data-complete] {
+  background: var(--color-success);
+}
+[data-slot="progress-value"][data-complete] {
+  color: var(--color-success);
+}
+```
+
+详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+| 属性 | 类型 | 说明 |
+| --- | --- | --- |
+| `value` | `number \| null` | 进度；`null` 或省略表示不确定态。 |
+| `min` / `max` | `number` | 范围，默认 0 与 100；越界值在填充与百分比上被夹取。 |
+| `format` | `Intl.NumberFormatOptions \| ((value: number) => string)` | 可见值与屏幕阅读器共用的格式。 |
+| `locale` | `string` | 格式化使用的地区，默认跟随页面 `lang`。 |
+| `getValueLabel` | `(value: number \| null, details) => string` | 替换屏幕阅读器读到的值文本。 |
+| `debug` | `boolean` | 开发构建里把每次状态变化与原因打到控制台。 |
+
+渲染函数与状态类名收到 `value`、`percent`（不确定态为 `null`）与 `status`（未知、进行中、已完成）；`ProgressValue` 另有 `text`（格式化文本，不确定态为空）。
+
+## 键盘与无障碍
+
+进度条是纯展示部件，没有键盘交互，也不接受焦点。根使用 `progressbar` 角色，对外暴露范围与格式化后的值：
+
+- 用 `ProgressLabel` 或根上的 `aria-label` 命名。
+- 可见的 `ProgressValue` 对屏幕阅读器隐藏，值由角色本身播报，不会重复。
+- 不确定态没有 `aria-valuenow`，只说明任务在进行。
+- 需要更多解释时用 `getValueLabel`；超过 `max` 的值按 `max` 播报。
+
+## 相关组件
+
+- [计量条](/docs/components/meter)：已知范围内的只读读数。
+- [按钮](/docs/components/button)：异步动作期间的等待态与播报。
+- [吐司](/docs/components/toast)：任务完成后的结果通知。
+- [样式与动画](/docs/concepts/styling-and-animation)：不确定态动画与减少动效的处理。

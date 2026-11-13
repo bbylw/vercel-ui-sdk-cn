@@ -1,0 +1,93 @@
+---
+title: "智能体概述"
+description: "ui-sdk 既给智能体构建组件的行为积木，也给它们操作组件的工具：createAgent 桥接快照、动作与查询，配合 WebMCP 与权限。"
+sidebar:
+  order: 0
+  label: "概述"
+---
+
+ui-sdk 为智能体提供两样东西：**构建组件的行为积木**，以及**操作组件的工具**。组件的行为（焦点、键盘导航、选择、弹出层、拖放）都经过测试，智能体既能用它们组合出新组件，也能直接读取并调用页面上已有组件的动作。
+
+## 智能体构建组件
+
+让智能体为你的应用构建一个组件——从切换按钮到 emoji 选择器、看板。`@ui-sdk/core` 提供**行为**：焦点、键盘导航、选择、弹出层、拖放等经过测试的积木。智能体把它们组合起来，处理组件所需的交互。
+
+一个**原语（primitive）**把组件的状态、动作与部件聚到一起。下面是个静音按钮：
+
+```ts
+import { definePrimitive } from "@ui-sdk/core";
+
+const muteButton = definePrimitive({
+  name: "mute-button",
+  state: () => ({ muted: false }),
+  api: (context) => ({
+    toggle: () => context.store.set({ muted: !context.store.get().muted }),
+  }),
+  slots: (slot) => ({
+    root: slot({
+      attrs: (state) => ({ type: "button", "aria-pressed": String(state.muted) }),
+      press: ({ api }) => api.toggle(),
+    }),
+  }),
+});
+```
+
+按下按钮改变 `muted`，`aria-pressed` 随之变化。同一个原语能在 React、Vue、Svelte、Solid 与 Web Components 里渲染。详见[行为与自定义组件](/docs/core)。
+
+## 智能体使用你的组件
+
+把智能体连接到用 ui-sdk 构建的界面，它就能直接读取组件状态、调用组件动作。例如调用输入框的 `setValue` 来重命名项目。
+
+在页面渲染前创建桥接，从与组件相同的包导入：
+
+```ts
+import { createAgent } from "@ui-sdk/react/agent";
+
+const agent = createAgent();
+```
+
+页面渲染后，`agent.snapshot()` 列出组件、它们的状态与可用动作。对一个项目名输入框：
+
+```json
+{
+  "ref": "c1",
+  "component": "input",
+  "label": "Project name",
+  "value": "Apollo",
+  "actions": ["setValue", "clear"]
+}
+```
+
+智能体用标签改变值：
+
+```ts
+await agent.act({
+  steps: [{ ref: "Project name", action: "setValue", args: ["Atlas"] }],
+});
+```
+
+变更走输入框的 API 与变更回调。应用可提供 `allow` 回调来批准或拒绝请求的动作；变更回调收到 `source: "agent"`，也能取消变更。详见[连接智能体](/docs/agents/connect)与[权限](/docs/agents/permissions)。
+
+## 亲手试试
+
+下面这个设置面板接好了智能体桥。点「让智能体操作」看它依次读取快照、调用动作；你也可以用键盘或鼠标自己改，桥会观察到你的变更：
+
+<Playground />
+
+## 为什么更快
+
+在一个项目设置基准里，智能体要重命名项目、更新成员与通知设置再保存。一个用浏览器工具操作另一组件库构建的页面，另一个用智能体桥操作 ui-sdk 构建的同一屏幕：
+
+| | 浏览器工具 | ui-sdk + 智能体桥 |
+| --- | --- | --- |
+| 工具调用 | 16 | 5 |
+| 读取文本 | 39.8k | 6.8k |
+| 耗时 | 41 s | 16 s |
+
+智能体桥直接读结构化的状态与动作，不必从像素与 DOM 文本里推断，因此调用更少、读取更少、更快。
+
+## 从哪里开始
+
+- [连接智能体](/docs/agents/connect)：搭桥、读组件、调用动作、注册 WebMCP 工具。
+- [权限](/docs/agents/permissions)：批准、拒绝或取消智能体的变更，标记需要人确认的控件。
+- [行为与自定义组件](/docs/core)：用 `definePrimitive` 构建自己的组件，让它也加入桥接。

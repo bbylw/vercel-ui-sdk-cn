@@ -1,0 +1,178 @@
+---
+title: "按钮"
+description: "Button 执行动作并显示执行中的状态：异步等待、失败重试、禁用仍可聚焦，也能渲染成链接。"
+sidebar:
+  order: 10
+---
+
+`Button`（按钮）渲染原生 `button`，并补上原生按钮没有的能力：异步动作执行期间保持等待态，表单不会重复提交；慢动作向屏幕阅读器播报；禁用时仍可聚焦；渲染成链接时保持同样的行为。只有一个普通点击处理时，原生 `button` 就够了。
+
+## 用法
+
+`Button` 只有根部件，没有子部件：
+
+```text
+Button
+```
+
+```tsx
+import { Button } from "@ui-sdk/react/button";
+
+function Example() {
+  return <Button onClick={() => save()}>保存</Button>;
+}
+```
+
+默认 `type="button"`，既不提交也不重置表单。`render`、`children`、`className`、`style` 都可以是读取状态的函数，参见[部件与组合](/docs/concepts/parts-and-composition)。
+
+## 异步动作与等待态
+
+`onClick` 返回 Promise 时，按钮进入等待态直到它结束：保持焦点、忽略后续按下。等待超过一秒后，通过礼貌 live region 播报 `pendingAnnouncement`（默认是英文的 Loading，请按页面语言设置，空字符串表示不播报），快速动作保持安静。
+
+```tsx
+<Button onClick={() => saveChanges()} pendingAnnouncement="正在保存">
+  <svg data-show="idle" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16">
+    <path d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10" fill="none" stroke="currentColor" />
+  </svg>
+  <span data-show="pending" data-slot="spinner" aria-hidden="true" />
+  保存
+</Button>
+```
+
+等待态的内容切换靠 `data-show="idle"` / `data-show="pending"` 标记，两条 CSS 规则即可（Tailwind 里也可用 `in-data-pending` 变体）：
+
+```css
+[data-slot="button"]:not([data-pending]) [data-show="pending"],
+[data-slot="button"][data-pending] [data-show="idle"] {
+  display: none;
+}
+```
+
+处理函数抛错或 Promise reject 时，`state.error` 保存该错误，下一次按下会清除它并重新执行。用渲染函数显示重试文案：
+
+```tsx
+<Button
+  onClick={() => saveChanges()}
+  render={(props, state) => (
+    <button {...props}>
+      {state.pending ? "正在保存…" : state.error ? "重试" : "保存更改"}
+    </button>
+  )}
+/>
+```
+
+`onClick` 还收到 `{ source }`，说明这次按下来自哪里。若在 `await` 之后修改别的 ui-sdk 组件，用 `withSource` 包住，否则那次变更会被记为 `"programmatic"`：
+
+```tsx
+import { withSource } from "@ui-sdk/react/observe";
+
+<Button
+  onClick={async (event, { source }) => {
+    await save();
+    withSource(source, () => status.setValue("已保存"));
+  }}
+>
+  保存
+</Button>;
+```
+
+这里的 `status` 是某个[输入框](/docs/components/input)的[控制器](/docs/concepts/controllers)。保留 `"agent"` 来源，代理的撤销才能覆盖这次变更。
+
+## 禁用与可聚焦
+
+`disabled` 阻止按下并把按钮移出 Tab 序列，外层 `<fieldset disabled>` 同样生效。加上 `focusableWhenDisabled` 后改用 `aria-disabled` 而非原生属性：禁用时仍可聚焦、可挂提示说明原因，按下依然无效。
+
+```tsx
+<Button disabled focusableWhenDisabled aria-describedby="publish-hint">
+  发布
+</Button>
+<p id="publish-hint">填写标题后才能发布。</p>
+```
+
+## 渲染成链接
+
+给 `render` 传一个 `<a>`，它保留 `href` 与链接语义，包括在新标签页打开。禁用的链接不能导航，也离开 Tab 序列。
+
+```tsx
+<Button render={<a href="/docs/getting-started/installation" />}>开始使用</Button>
+<Button disabled render={<a href="/docs/components" />}>
+  组件总览
+</Button>
+```
+
+## 表单
+
+`type="submit"` 提交表单，`type="reset"` 恢复默认值。Button 只跟踪自己 `onClick` 返回的 Promise，不跟踪表单 submit 处理函数的 Promise：异步提交请自己维护等待标记，期间给按钮设 `disabled`，并配合 `focusableWhenDisabled` 保住焦点。
+
+```tsx
+<form onSubmit={handleSubmit}>
+  <Button type="submit" disabled={submitting} focusableWhenDisabled>
+    订阅
+  </Button>
+  <Button type="reset">重置</Button>
+</form>
+```
+
+## 样式与状态
+
+部件无样式，`data-slot` 是 `button`，状态属性有两个：
+
+- `data-pending`：按下处理函数返回的 Promise 仍在执行。
+- `data-disabled`：处于禁用态。
+
+```css
+[data-slot="button"][data-pending] {
+  cursor: progress;
+}
+[data-slot="button"][data-disabled] {
+  opacity: 0.5;
+}
+[data-slot="button"] [data-slot="spinner"] {
+  inline-size: 14px;
+  block-size: 14px;
+  border: 2px solid currentColor;
+  border-block-start-color: transparent;
+  border-radius: 50%;
+  animation: button-spin 700ms linear infinite;
+}
+@keyframes button-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+```
+
+详见[样式与动画](/docs/concepts/styling-and-animation)。
+
+## API
+
+| 属性 | 类型 | 说明 |
+| --- | --- | --- |
+| `onClick` | `(event, { source }) => void \| Promise` | 按下时执行；返回 Promise 则保持等待态直到它结束。 |
+| `disabled` | `boolean` | 阻止按下，原生禁用并离开 Tab 序列。 |
+| `focusableWhenDisabled` | `boolean` | 禁用时改用 `aria-disabled`，仍可聚焦。 |
+| `type` | `"button" \| "reset" \| "submit"` | 原生按钮在表单里的行为，默认 `"button"`；渲染成其他元素时忽略。 |
+| `pendingAnnouncement` | `string` | 等待满一秒后播报的文本，空字符串不播报。 |
+| `render` | `ReactElement \| (props, state) => ReactElement` | 换元素或按状态渲染。 |
+| `debug` | `boolean` | 开发构建里把每次状态变化与原因打到控制台。 |
+
+渲染函数与状态类名收到 `disabled`（`boolean`）、`pending`（`boolean`）、`error`（`unknown`，上次按下失败的原因，下次按下清除）。
+
+## 键盘与无障碍
+
+- 原生按钮响应 `Enter` 与 `Space`；渲染成链接时响应 `Enter`。
+- 给按钮清晰的文本标签，只有图标时补 `aria-label`。
+- 等待期间自动设置 `aria-busy="true"` 与 `aria-disabled="true"`，忽略按下并全程保持焦点；满一秒后播报状态消息，焦点不移动。
+
+显示进度时保留标签、只换视觉（例如转圈）。改文本等于在聚焦时给按钮重命名，屏幕阅读器不会可靠播报新名称，按钮宽度也会随文字长度跳动。文本必须变化时用 `data-show` 切换，并且不要加 `aria-label`，让可访问名始终包含屏幕上的文字。
+
+<Aside type="caution" title="不要重复播报">
+组件已经用礼貌 live region 播报等待态，不要再在按钮里放一个 `aria-live` 区域说同一件事，也不要自己维护 `saving` 文本加 `aria-label` 的组合。
+</Aside>
+
+## 相关组件
+
+- [切换按钮](/docs/components/toggle)：有按下与弹起两种状态的动作。
+- [字段](/docs/components/field)：表单里的标签、说明与校验信息。
+- [提示](/docs/components/tooltip)：解释动作为什么不可用。
+- [表单](/docs/concepts/forms)：提交、重置与校验的约定。
