@@ -12,6 +12,7 @@
     "typecheck": "astro check",
     "lint:docs": "nimbus-docs lint",
     "lint:docs:fix": "nimbus-docs lint --fix",
+    "check:contrast": "node scripts/probes/contrast.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
